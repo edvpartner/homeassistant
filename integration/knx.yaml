@@ -1,0 +1,465 @@
+# packages/elabgrando_knx.yaml
+# Stand: aktualisiert mit neuen Gruppenadressen (OG Dimmlevel, Außenbereich Tür, Garten)
+# Quelle: aktuelle elabgrando_knx.yaml + Gruppenadressen_EG.csv
+
+knx:
+  light:
+    # Erdgeschoss Dimmer
+    - name: "Küchenspots"
+      address: "1/7/1"
+      state_address: "1/7/2"
+      brightness_state_address: "1/7/3"
+      brightness_address: "1/7/29"
+
+    - name: "Esszimmer Pendelleuchte"
+      address: "1/7/4"
+      state_address: "1/7/5"
+      brightness_state_address: "1/7/6"
+      brightness_address: "1/7/30"
+
+    - name: "Pendelleuchte Kücheninsel"
+      address: "1/7/16"
+      state_address: "1/7/17"
+      brightness_state_address: "1/7/18"
+      brightness_address: "1/7/31"
+
+    - name: "Wohnzimmer Lampe"
+      address: "1/7/7"
+      state_address: "1/7/8"
+      brightness_state_address: "1/7/9"
+      brightness_address: "1/7/32"
+
+    - name: "Eingangspots"
+      address: "1/7/10"
+      state_address: "1/7/11"
+      brightness_state_address: "1/7/12"
+      brightness_address: "1/7/33"
+
+    - name: "Gäste WC Licht"
+      address: "1/7/13"
+      state_address: "1/7/14"
+      brightness_state_address: "1/7/15"
+      brightness_address: "1/7/34"
+
+    # Erdgeschoss Außen
+    - name: "Außenbeleuchtung Dach"
+      address: "1/7/0"
+      state_address: "1/7/21"
+
+    - name: "Außenbeleuchtung Vorgarten Terrasse Mitte"
+      address: "1/7/22"
+      state_address: "1/7/23"
+
+    - name: "Außenbeleuchtung Vorgarten Terrasse Links"
+      address: "1/7/24"
+      state_address: "1/7/25"
+
+    - name: "Außenbeleuchtung Vorgarten Terrasse Rechts"
+      address: "1/7/26"
+      state_address: "1/7/27"
+
+    - name: "Beleuchtung Kellertreppe"
+      address: "1/7/35"
+      state_address: "1/7/36"
+
+    # Neue Außen Gruppenadressen
+    - name: "Außenbereich Tür Deko"
+      address: "1/7/37"
+      state_address: "1/7/38"
+
+    - name: "Außenbereich Tür Beleuchtung"
+      address: "1/7/39"
+      state_address: "1/7/40"
+
+    - name: "Außenbeleuchtung Garten Mitte"
+      address: "1/7/43"
+      state_address: "1/7/44"
+
+    - name: "Außenbeleuchtung Garten Rechts"
+      address: "1/7/45"
+      state_address: "1/7/46"
+
+    # Obergeschoss Licht (Dimmer, jetzt mit Dimmlevel)
+    - name: "OG Flur Licht"
+      address: "2/7/0"
+      state_address: "2/7/1"
+      brightness_address: "2/7/24"
+      brightness_state_address: "2/7/25"
+
+    - name: "OG Ella Licht"
+      address: "2/7/2"
+      state_address: "2/7/3"
+      brightness_address: "2/7/26"
+      brightness_state_address: "2/7/27"
+
+    - name: "OG Lotta Licht"
+      address: "2/7/4"
+      state_address: "2/7/5"
+      brightness_address: "2/7/28"
+      brightness_state_address: "2/7/29"
+
+    - name: "OG Schlafzimmer Licht"
+      address: "2/7/6"
+      state_address: "2/7/7"
+      brightness_address: "2/7/30"
+      brightness_state_address: "2/7/31"
+
+    - name: "OG Badezimmer Licht"
+      address: "2/7/8"
+      state_address: "2/7/9"
+      brightness_address: "2/7/32"
+      brightness_state_address: "2/7/33"
+
+    - name: "OG Treppenlicht"
+      address: "2/7/10"
+      state_address: "2/7/11"
+
+    - name: "Nachttischleuchte Yvonne"
+      address: "2/7/12"
+      state_address: "2/7/13"
+
+    - name: "Nachttischleuchte Bastian"
+      address: "2/7/14"
+      state_address: "2/7/15"
+
+    - name: "Nachttischlampe Ella"
+      address: "2/7/16"
+      state_address: "2/7/17"
+
+    - name: "Nachttischlampe Lotta"
+      address: "2/7/18"
+      state_address: "2/7/19"
+
+    - name: "Schminktisch Ella Licht"
+      address: "2/7/20"
+      state_address: "2/7/21"
+
+    - name: "Schminktisch Lotta Licht"
+      address: "2/7/22"
+      state_address: "2/7/23"
+
+    # Keller Licht (Schalten)
+    - name: "Keller Waschküche Licht"
+      address: "4/7/0"
+      state_address: "4/7/1"
+
+    - name: "Keller Technikraum Licht"
+      address: "4/7/2"
+      state_address: "4/7/3"
+
+    - name: "Keller Vorratsraum Licht"
+      address: "4/7/4"
+      state_address: "4/7/5"
+
+    - name: "Keller Büro Licht"
+      address: "4/7/6"
+      state_address: "4/7/7"
+
+    - name: "Kellerflur Licht"
+      address: "4/7/8"
+      state_address: "4/7/9"
+
+  switch:
+    # Szenen
+    - name: "Sideboard Deko"
+      address: "1/3/0"
+      state_address: "1/3/1"
+
+    # Erdgeschoss Steckdosen / Verbraucher
+    - name: "Wohnzimmer Rollokasten 3"
+      address: "1/4/0"
+      state_address: "1/4/1"
+
+    - name: "Wohnzimmer Deko Tür"
+      address: "1/4/2"
+      state_address: "1/4/3"
+
+    - name: "Wohnzimmer Sideboard Deko rechts"
+      address: "1/4/4"
+      state_address: "1/4/5"
+
+    - name: "Wohnzimmer Sideboard Deko links"
+      address: "1/4/6"
+      state_address: "1/4/7"
+
+    - name: "Wohnzimmer Fernseher"
+      address: "1/4/8"
+      state_address: "1/4/9"
+
+    - name: "Wohnzimmer TV2 grau"
+      address: "1/4/10"
+      state_address: "1/4/11"
+
+    - name: "Wohnzimmer TV Mehrfachsteckdose"
+      address: "1/4/12"
+      state_address: "1/4/13"
+
+    - name: "Eingangsbereich Saugroboter"
+      address: "1/4/14"
+      state_address: "1/4/15"
+
+    - name: "Eingangsbereich Tablet"
+      address: "1/4/16"
+      state_address: "1/4/17"
+
+    - name: "Esszimmer Deko rechts"
+      address: "1/4/18"
+      state_address: "1/4/19"
+
+    - name: "Esszimmer Deko links"
+      address: "1/4/20"
+      state_address: "1/4/21"
+
+    - name: "Esszimmer Deko Fensterbank"
+      address: "1/4/22"
+      state_address: "1/4/23"
+
+    - name: "Außensteckdose Vorgarten Terrasse"
+      address: "1/4/24"
+      state_address: "1/4/25"
+
+    - name: "Gäste WC Heizkörper"
+      address: "1/4/26"
+      state_address: "1/4/27"
+
+    - name: "Küche Wandschrank links"
+      address: "1/4/31"
+
+    # Neue Außen Gruppenadresse: Tür Steckdose
+    - name: "Außenbereich Tür Steckdose"
+      address: "1/7/41"
+      state_address: "1/7/42"
+
+    # Zentralfunktion
+    - name: "Beleuchtung gesamt EG innen aus"
+      address: "1/7/28"
+
+    - name: "EG Wohnbereich alle ein"
+      address: "1/7/19"
+
+    - name: "EG Wohnbereich alle aus"
+      address: "1/7/20"
+
+    # Obergeschoss Steckdosen / Verbraucher
+    - name: "Fernseher Schlafzimmer"
+      address: "2/4/0"
+      state_address: "2/4/1"
+
+    - name: "Fernseher Lotta"
+      address: "2/4/2"
+      state_address: "2/4/3"
+
+    - name: "Fernseher Ella"
+      address: "2/4/4"
+      state_address: "2/4/5"
+
+    - name: "Schlafzimmer Sideboard rechts"
+      address: "2/4/6"
+      state_address: "2/4/7"
+
+    - name: "Schlafzimmer Sideboard links"
+      address: "2/4/8"
+      state_address: "2/4/9"
+
+    - name: "Schlafzimmer Schrank li re"
+      address: "2/4/10"
+      state_address: "2/4/11"
+
+    - name: "Flursteckdose Fensterbank"
+      address: "2/4/12"
+      state_address: "2/4/13"
+
+    - name: "Schrank Ella"
+      address: "2/4/14"
+      state_address: "2/4/15"
+
+    # Keller Verbraucher
+    - name: "Zirkulationspumpe"
+      address: "4/5/0"
+      state_address: "4/5/1"
+
+    - name: "Brauchwasserwärmepumpe"
+      address: "4/5/5"
+      state_address: "4/5/6"
+
+    - name: "Keller Kühlschrank"
+      address: "4/5/10"
+      state_address: "4/5/11"
+
+  cover:
+    - name: "Rollo Wohnzimmer Tür"
+      move_long_address: "1/5/0"
+      stop_address: "1/5/2"
+      position_address: "1/5/3"
+      position_state_address: "1/5/1"
+
+    - name: "Rollo Wohnzimmer Fenster"
+      move_long_address: "1/5/4"
+      stop_address: "1/5/5"
+      position_address: "1/5/7"
+      position_state_address: "1/5/6"
+
+  binary_sensor:
+    # Erdgeschoss Präsenz
+    - name: "Präsenz Küche"
+      state_address: "1/6/0"
+      device_class: motion
+
+    - name: "Präsenz Esszimmer"
+      state_address: "1/6/2"
+      device_class: motion
+
+    - name: "Präsenz Wohnzimmer"
+      state_address: "1/6/4"
+      device_class: motion
+
+    - name: "Präsenz Eingangsbereich"
+      state_address: "1/6/6"
+      device_class: motion
+
+    - name: "Präsenz Gäste WC"
+      state_address: "1/6/8"
+      device_class: motion
+
+    # Obergeschoss Präsenz
+    - name: "Präsenz OG Flur"
+      state_address: "2/6/0"
+      device_class: motion
+
+    - name: "Präsenz OG Ella"
+      state_address: "2/6/2"
+      device_class: motion
+
+    - name: "Präsenz OG Lotta"
+      state_address: "2/6/4"
+      device_class: motion
+
+    - name: "Präsenz OG Schlafzimmer"
+      state_address: "2/6/6"
+      device_class: motion
+
+    - name: "Präsenz OG Badezimmer"
+      state_address: "2/6/8"
+      device_class: motion
+
+    # Keller Präsenz
+    - name: "Präsenz Kellerflur"
+      state_address: "4/6/10"
+      device_class: motion
+
+    - name: "Präsenz Waschküche"
+      state_address: "4/6/0"
+      device_class: motion
+
+  sensor:
+    # Messen und Statistik
+    - name: "A03 Gesamtverbrauch"
+      state_address: "4/4/0"
+      type: energy
+
+    - name: "A03 Strom aktuell"
+      state_address: "4/4/1"
+      type: current
+
+    # Erdgeschoss Helligkeit
+    - name: "Helligkeit Küche"
+      state_address: "1/6/1"
+      type: illuminance
+
+    - name: "Helligkeit Esszimmer"
+      state_address: "1/6/3"
+      type: illuminance
+
+    - name: "Helligkeit Wohnzimmer"
+      state_address: "1/6/5"
+      type: illuminance
+
+    - name: "Helligkeit Eingangsbereich"
+      state_address: "1/6/7"
+      type: illuminance
+
+    - name: "Helligkeit Gäste WC"
+      state_address: "1/6/9"
+      type: illuminance
+
+    # Obergeschoss Helligkeit
+    - name: "Helligkeit OG Flur"
+      state_address: "2/6/1"
+      type: illuminance
+
+    - name: "Helligkeit OG Ella"
+      state_address: "2/6/3"
+      type: illuminance
+
+    - name: "Helligkeit OG Lotta"
+      state_address: "2/6/5"
+      type: illuminance
+
+    - name: "Helligkeit OG Schlafzimmer"
+      state_address: "2/6/7"
+      type: illuminance
+
+    - name: "Helligkeit OG Badezimmer"
+      state_address: "2/6/9"
+      type: illuminance
+
+    # Keller Helligkeit
+    - name: "Helligkeit Kellerflur"
+      state_address: "4/6/11"
+      type: illuminance
+
+    - name: "Helligkeit Waschküche"
+      state_address: "4/6/1"
+      type: illuminance
+
+    # Gäste WC Heizkörper
+    - name: "Gäste WC Heizkörper Energie"
+      state_address: "1/4/29"
+      type: energy
+
+    - name: "Gäste WC Heizkörper Leistung"
+      state_address: "1/4/30"
+      type: power
+
+    - name: "Gäste WC Heizkörper Betriebsstunden"
+      state_address: "1/4/28"
+      type: time_period_hrs
+
+    # Zirkulationspumpe
+    - name: "Zirkulationspumpe Energie"
+      state_address: "4/5/2"
+      type: energy
+
+    - name: "Zirkulationspumpe Leistung"
+      state_address: "4/5/3"
+      type: power
+
+    - name: "Zirkulationspumpe Betriebsstunden"
+      state_address: "4/5/4"
+      type: time_period_sec
+
+    # Brauchwasserwärmepumpe
+    - name: "Brauchwasserwärmepumpe Energie"
+      state_address: "4/5/7"
+      type: energy
+
+    - name: "Brauchwasserwärmepumpe Leistung"
+      state_address: "4/5/8"
+      type: power
+
+    - name: "Brauchwasserwärmepumpe Betriebsstunden"
+      state_address: "4/5/9"
+      type: time_period_hrs
+
+    # Keller Kühlschrank
+    - name: "Keller Kühlschrank Energie"
+      state_address: "4/5/12"
+      type: energy
+
+    - name: "Keller Kühlschrank Leistung"
+      state_address: "4/5/13"
+      type: power
+
+    - name: "Keller Kühlschrank Betriebsstunden"
+      state_address: "4/5/14"
+      type: time_period_hrs

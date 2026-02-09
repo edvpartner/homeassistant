@@ -1,0 +1,222 @@
+# packages/integrationen/knx_esszimmer_rollo.yaml
+# KNX Integration für Esszimmer Rolladen
+
+knx:
+  cover:
+    - name: "Rollo Esszimmer Tür"
+      # Bewegung (Hoch/Runter)
+      move_long_address: "1/5/8"
+      # Stop
+      stop_address: "1/5/10"
+      # Position setzen (0-100%)
+      position_address: "1/5/11"
+      # Position Status (Rückmeldung)
+      position_state_address: "1/5/9"
+      
+      # Konfiguration
+      travelling_time_down: 25  # Sekunden für komplettes Runterfahren
+      travelling_time_up: 25    # Sekunden für komplettes Hochfahren
+      
+      # Geräte-Klasse
+      device_class: shutter
+      
+      # Invertierung falls nötig (Standard: 0% = Offen, 100% = Geschlossen)
+      invert_position: false
+      invert_angle: false
+
+# Optional: Template Cover mit erweiterten Funktionen
+cover:
+  - platform: template
+    covers:
+      esszimmer_rollo_smart:
+        friendly_name: "Esszimmer Rollo Smart"
+        device_class: shutter
+        
+        # Position
+        position_template: "{{ state_attr('cover.rollo_esszimmer_tur', 'current_position') }}"
+        
+        # Ist das Rollo in Bewegung?
+        availability_template: "{{ states('cover.rollo_esszimmer_tur') not in ['unavailable', 'unknown'] }}"
+        
+        # Öffnen
+        open_cover:
+          service: cover.open_cover
+          target:
+            entity_id: cover.rollo_esszimmer_tur
+        
+        # Schließen
+        close_cover:
+          service: cover.close_cover
+          target:
+            entity_id: cover.rollo_esszimmer_tur
+        
+        # Stoppen
+        stop_cover:
+          service: cover.stop_cover
+          target:
+            entity_id: cover.rollo_esszimmer_tur
+        
+        # Position setzen
+        set_cover_position:
+          service: cover.set_cover_position
+          target:
+            entity_id: cover.rollo_esszimmer_tur
+          data:
+            position: "{{ position }}"
+
+# Automationen für intelligente Rollo-Steuerung
+automation:
+  # Automatisch schließen bei Sonne (Sommer)
+  - id: esszimmer_rollo_sonnenschutz
+    alias: "Esszimmer Rollo: Sonnenschutz"
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.helligkeit_esszimmer
+        above: 40000  # Lux - anpassen an deine Bedürfnisse
+        for:
+          minutes: 5
+    
+    condition:
+      # Nur in Sommermonaten
+      - condition: template
+        value_template: >
+          {{ now().month in [5, 6, 7, 8, 9] }}
+      # Nur wenn niemand im Raum
+      - condition: state
+        entity_id: binary_sensor.prasenz_esszimmer
+        state: "off"
+        for:
+          minutes: 10
+      # Nur wenn Rollo offen ist
+      - condition: numeric_state
+        entity_id: cover.rollo_esszimmer_tur
+        attribute: current_position
+        above: 50
+    
+    action:
+      - service: cover.set_cover_position
+        target:
+          entity_id: cover.rollo_esszimmer_tur
+        data:
+          position: 30  # 30% geschlossen für Sonnenschutz
+      
+      - service: logbook.log
+        data:
+          name: "Rollo Esszimmer"
+          message: "Sonnenschutz aktiviert (30% geschlossen)"
+
+  # Automatisch öffnen bei Sonnenuntergang
+  - id: esszimmer_rollo_abends_oeffnen
+    alias: "Esszimmer Rollo: Abends öffnen"
+    mode: single
+    trigger:
+      - platform: sun
+        event: sunset
+        offset: "-00:30:00"  # 30 Minuten vor Sonnenuntergang
+    
+    condition:
+      # Nur wenn Rollo nicht komplett offen
+      - condition: numeric_state
+        entity_id: cover.rollo_esszimmer_tur
+        attribute: current_position
+        below: 90
+    
+    action:
+      - service: cover.open_cover
+        target:
+          entity_id: cover.rollo_esszimmer_tur
+      
+      - service: logbook.log
+        data:
+          name: "Rollo Esszimmer"
+          message: "Automatisch geöffnet (Sonnenuntergang)"
+
+  # Morgens öffnen
+  - id: esszimmer_rollo_morgens_oeffnen
+    alias: "Esszimmer Rollo: Morgens öffnen"
+    mode: single
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    
+    condition:
+      # Nur wenn jemand zuhause
+      - condition: state
+        entity_id: input_select.hausmodus
+        state: "Zuhause"
+      # Nur wenn Rollo geschlossen
+      - condition: numeric_state
+        entity_id: cover.rollo_esszimmer_tur
+        attribute: current_position
+        below: 50
+    
+    action:
+      - service: cover.open_cover
+        target:
+          entity_id: cover.rollo_esszimmer_tur
+      
+      - service: logbook.log
+        data:
+          name: "Rollo Esszimmer"
+          message: "Morgens automatisch geöffnet"
+
+  # Schließen bei Abwesenheit/Urlaub
+  - id: esszimmer_rollo_bei_abwesenheit
+    alias: "Esszimmer Rollo: Bei Abwesenheit schließen"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: input_select.hausmodus
+        to: 
+          - "Abwesend"
+          - "Urlaub"
+    
+    condition:
+      # Nur wenn Rollo offen
+      - condition: numeric_state
+        entity_id: cover.rollo_esszimmer_tur
+        attribute: current_position
+        above: 30
+    
+    action:
+      - service: cover.close_cover
+        target:
+          entity_id: cover.rollo_esszimmer_tur
+      
+      - service: logbook.log
+        data:
+          name: "Rollo Esszimmer"
+          message: "Geschlossen wegen Abwesenheit"
+
+# Sensoren für Rollo-Status
+template:
+  - sensor:
+      - name: "Esszimmer Rollo Position Prozent"
+        unique_id: esszimmer_rollo_position_prozent
+        unit_of_measurement: "%"
+        state: "{{ state_attr('cover.rollo_esszimmer_tur', 'current_position') | int(0) }}"
+        icon: >
+          {% set pos = state_attr('cover.rollo_esszimmer_tur', 'current_position') | int(0) %}
+          {% if pos == 0 %}
+            mdi:window-shutter
+          {% elif pos < 50 %}
+            mdi:window-shutter-open
+          {% elif pos < 100 %}
+            mdi:window-shutter
+          {% else %}
+            mdi:window-shutter
+          {% endif %}
+
+  - binary_sensor:
+      - name: "Esszimmer Rollo ist offen"
+        unique_id: esszimmer_rollo_ist_offen
+        state: >
+          {{ state_attr('cover.rollo_esszimmer_tur', 'current_position') | int(0) > 80 }}
+        icon: mdi:window-shutter-open
+        
+      - name: "Esszimmer Rollo ist geschlossen"
+        unique_id: esszimmer_rollo_ist_geschlossen
+        state: >
+          {{ state_attr('cover.rollo_esszimmer_tur', 'current_position') | int(0) < 20 }}
+        icon: mdi:window-shutter

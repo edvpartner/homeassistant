@@ -1,0 +1,158 @@
+# packages/integrationen/knx_obergeschoss.yaml
+# KNX-Integration für Obergeschoss
+# Schaltaktoren: 1.2.11 B05 (12 Fach) + 1.2.9 B04 (8 Fach)
+# Dimmaktoren: 1.2.7 B02 (4 Fach) + 1.2.8 B03 (4 Fach)
+
+knx:
+  # ============================================================
+  # SCHALTAKTOR 1.2.11 B05 - 12 FACH (Screenshot 1)
+  # ============================================================
+  switch:
+    # Channel F: Schrank Ella
+    - name: "OG Schrank Ella"
+      address: "2/4/14"
+      state_address: "2/4/15"
+
+    # Channel G: Nachttischleuchte Bastian
+    - name: "OG Nachttischleuchte Bastian"
+      address: "2/7/14"
+      state_address: "2/7/15"
+
+    # Channel H: Nachttischleuchte Yvonne
+    - name: "OG Nachttischleuchte Yvonne"
+      address: "2/7/12"
+      state_address: "2/7/13"
+
+    # Channel I: Schlafzimmer Sideboard rechts
+    - name: "OG Schlafzimmer Sideboard rechts"
+      address: "2/4/6"
+      state_address: "2/4/7"
+
+    # Channel J: Schlafzimmer Sideboard links
+    - name: "OG Schlafzimmer Sideboard links"
+      address: "2/4/8"
+      state_address: "2/4/9"
+
+    # Channel K: Fernseher Schlafzimmer
+    - name: "OG Fernseher Schlafzimmer"
+      address: "2/4/0"
+      state_address: "2/4/1"
+
+  # ============================================================
+  # SCHALTAKTOR 1.2.9 B04 - 8 FACH (Screenshot 2)
+  # ============================================================
+  light:
+    # Channel B: Treppenlicht
+    - name: "Treppenlicht"
+      address: "2/7/10"
+      state_address: "2/7/11"
+      brightness_address: false
+
+  switch:
+    # Channel E: Flursteckdose Fensterbank
+    - name: "OG Flursteckdose Fensterbank"
+      address: "2/4/12"
+      state_address: "2/4/13"
+
+    # Channel F: Nachttischlampe Ella
+    - name: "OG Nachttischlampe Ella"
+      address: "2/7/16"
+      state_address: "2/7/17"
+
+    # Channel G: Schminktisch Lotta Licht
+    - name: "OG Schminktisch Lotta Licht"
+      address: "2/7/22"
+      state_address: "2/7/23"
+
+    # Channel H: Schminktisch Lotta Licht (Schalter - falls doppelt)
+    # Wird bereits oben definiert
+
+  # ============================================================
+  # DIMMAKTOR 1.2.7 B02 - 4 FACH (Screenshot 3)
+  # ============================================================
+  light:
+    # Channel A: Dimmaktor Flur
+    - name: "OG Flur Licht"
+      address: "2/7/0"
+      state_address: "2/7/1"
+      brightness_address: "2/7/24"
+      brightness_state_address: "2/7/25"
+
+    # Channel B: Dimmaktor Ella
+    - name: "OG Ella Licht"
+      address: "2/7/2"
+      state_address: "2/7/3"
+      brightness_address: "2/7/26"
+      brightness_state_address: "2/7/27"
+
+    # Channel C: Dimmaktor Lotta
+    - name: "OG Lotta Licht"
+      address: "2/7/4"
+      state_address: "2/7/5"
+      brightness_address: "2/7/28"
+      brightness_state_address: "2/7/29"
+
+    # Channel D: Dimmaktor Schlafzimmer
+    - name: "OG Schlafzimmer Deckenlicht"
+      address: "2/7/6"
+      state_address: "2/7/7"
+      brightness_address: "2/7/30"
+      brightness_state_address: "2/7/31"
+
+  # ============================================================
+  # DIMMAKTOR 1.2.8 B03 - 4 FACH (Screenshot 4)
+  # ============================================================
+  light:
+    # Channel A: Dimmaktor Badezimmer
+    - name: "OG Badezimmer Deckenlicht"
+      address: "2/7/8"
+      state_address: "2/7/9"
+      brightness_address: "2/7/32"
+      brightness_state_address: "2/7/33"
+
+  # ============================================================
+  # PLATZHALTER FÜR VINCENT (Noch nicht installiert)
+  # ============================================================
+  # Channel B, C, D des Dimmaktors 1.2.8 B03 sind frei
+  # Können später für Vincent verwendet werden
+
+  # ============================================================
+  # ROLLADEN (Platzhalter für zukünftige Installation)
+  # ============================================================
+  # Aktoren sind da, aber noch nicht programmiert
+  # cover:
+  #   - name: "OG Rollo Ella"
+  #     move_long_address: "2/x/x"
+  #     move_short_address: "2/x/x"
+  #     stop_address: "2/x/x"
+  #     position_address: "2/x/x"
+  #     position_state_address: "2/x/x"
+  #
+  #   - name: "OG Rollo Lotta"
+  #     move_long_address: "2/x/x"
+  #     move_short_address: "2/x/x"
+  #     stop_address: "2/x/x"
+  #     position_address: "2/x/x"
+  #     position_state_address: "2/x/x"
+  #
+  #   - name: "OG Rollo Schlafzimmer"
+  #     move_long_address: "2/x/x"
+  #     move_short_address: "2/x/x"
+  #     stop_address: "2/x/x"
+  #     position_address: "2/x/x"
+  #     position_state_address: "2/x/x"
+  #
+  #   - name: "OG Rollo Flur"
+  #     move_long_address: "2/x/x"
+  #     move_short_address: "2/x/x"
+  #     stop_address: "2/x/x"
+  #     position_address: "2/x/x"
+  #     position_state_address: "2/x/x"
+
+# ============================================================
+# ZUSÄTZLICHE SWITCHES (falls nicht über KNX)
+# ============================================================
+# Falls diese über andere Integrationen laufen:
+# - switch.og_fernseher_lotta
+# - switch.og_fernseher_ella
+# - light.og_schminktisch_ella_licht (falls separates Gerät)

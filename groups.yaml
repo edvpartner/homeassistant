@@ -1,0 +1,12 @@
+group:
+  aussenbeleuchtung:
+    name: Außenbeleuchtung
+    entities:
+      - light.aussenbeleuchtung_dach
+      - light.aussenbeleuchtung_vorgarten_terrasse_mitte
+      - light.aussenbeleuchtung_vorgarten_terrasse_links
+      - light.aussenbeleuchtung_vorgarten_terrasse_rechts
+      - light.aussenbereich_tur_beleuchtung
+      - light.aussenbeleuchtung_garten_mitte
+      - light.aussenbeleuchtung_garten_rechts
+      - switch.aussenbereich_tur_steckdose

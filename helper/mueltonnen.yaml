@@ -1,0 +1,431 @@
+# /config/packages/helfer_muelltonnen.yaml
+
+input_boolean:
+  muell_gruen_offen:
+    name: Grüne Tonne offen
+    icon: mdi:trash-can
+
+  muell_gelb_offen:
+    name: Gelbe Tonne offen
+    icon: mdi:recycle
+
+  muell_blau_offen:
+    name: Blaue Tonne offen
+    icon: mdi:newspaper
+
+input_button:
+  muell_gruen_bestaetigen:
+    name: Grüne Tonne bestätigt
+    icon: mdi:trash-can
+
+  muell_gelb_bestaetigen:
+    name: Gelbe Tonne bestätigt
+    icon: mdi:recycle
+
+  muell_blau_bestaetigen:
+    name: Blaue Tonne bestätigt
+    icon: mdi:newspaper
+
+input_number:
+  muell_rest_tage_bis:
+    name: Restmüll Tage bis
+    min: 0
+    max: 60
+    step: 1
+    mode: box
+    unit_of_measurement: "Tage"
+    icon: mdi:trash-can
+
+  muell_gelb_tage_bis:
+    name: Gelb Tage bis
+    min: 0
+    max: 60
+    step: 1
+    mode: box
+    unit_of_measurement: "Tage"
+    icon: mdi:recycle
+
+  muell_papier_tage_bis:
+    name: Papier Tage bis
+    min: 0
+    max: 60
+    step: 1
+    mode: box
+    unit_of_measurement: "Tage"
+    icon: mdi:newspaper
+
+template:
+  - sensor:
+      - name: "Muelltonnen offen Text"
+        state: >-
+          {% set l = [] %}
+          {% if is_state('input_boolean.muell_gruen_offen','on') %}{% set l = l + ['grüne Tonne'] %}{% endif %}
+          {% if is_state('input_boolean.muell_gelb_offen','on') %}{% set l = l + ['gelbe Tonne'] %}{% endif %}
+          {% if is_state('input_boolean.muell_blau_offen','on') %}{% set l = l + ['blaue Tonne'] %}{% endif %}
+          {{ l | join(', ') if l | length > 0 else 'keine' }}
+
+automation:
+
+  ########################################################
+  # Countdown aktualisieren (täglich + nach Neustart)
+  ########################################################
+  - alias: Mülltonnen Countdown aktualisieren
+    id: muell_countdown_update
+    mode: single
+    trigger:
+      - platform: time
+        at: "03:10:00"
+      - platform: homeassistant
+        event: start
+
+    action:
+      - service: calendar.get_events
+        target:
+          entity_id: calendar.abfallkalender_2026
+        data:
+          start_date_time: "{{ now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat() }}"
+          end_date_time: "{{ (now() + timedelta(days=60)).replace(hour=23, minute=59, second=59, microsecond=0).isoformat() }}"
+        response_variable: muell_events
+
+      - variables:
+          ev: "{{ muell_events.get('calendar.abfallkalender_2026', {}).get('events', []) }}"
+
+          rest_days: >-
+            {% set ns = namespace(days=[]) %}
+            {% for e in ev %}
+              {% set s = (e.get('summary','') | string) | lower | trim %}
+              {% if 'restm' in s %}
+                {% set d = (as_datetime(e.get('start')).date() - now().date()).days %}
+                {% if d >= 0 %}
+                  {% set ns.days = ns.days + [d] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ (ns.days | min) if ns.days | length > 0 else 60 }}
+
+          gelb_days: >-
+            {% set ns = namespace(days=[]) %}
+            {% for e in ev %}
+              {% set s = (e.get('summary','') | string) | lower | trim %}
+              {% if 'gelb' in s %}
+                {% set d = (as_datetime(e.get('start')).date() - now().date()).days %}
+                {% if d >= 0 %}
+                  {% set ns.days = ns.days + [d] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ (ns.days | min) if ns.days | length > 0 else 60 }}
+
+          papier_days: >-
+            {% set ns = namespace(days=[]) %}
+            {% for e in ev %}
+              {% set s = (e.get('summary','') | string) | lower | trim %}
+              {% if 'papier' in s %}
+                {% set d = (as_datetime(e.get('start')).date() - now().date()).days %}
+                {% if d >= 0 %}
+                  {% set ns.days = ns.days + [d] %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ (ns.days | min) if ns.days | length > 0 else 60 }}
+
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.muell_rest_tage_bis
+        data:
+          value: "{{ rest_days }}"
+
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.muell_gelb_tage_bis
+        data:
+          value: "{{ gelb_days }}"
+
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.muell_papier_tage_bis
+        data:
+          value: "{{ papier_days }}"
+
+
+  ########################################################
+  # 19:00 Uhr am Vortag (nur _2 ausführen)
+  ########################################################
+  - alias: Mülltonnen Erinnerung 19 Uhr
+    id: muell_erinnerung_19_uhr
+    mode: single
+    trigger:
+      - platform: time
+        at: "19:00:00"
+
+    condition:
+      - condition: template
+        value_template: "{{ this.entity_id.endswith('_2') }}"
+
+    variables:
+      notify_push: notify.notify
+      alexa_target: media_player.show_kuche
+      morgen_start: "{{ (now() + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat() }}"
+      morgen_ende: "{{ (now() + timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=0).isoformat() }}"
+
+    action:
+      - service: calendar.get_events
+        target:
+          entity_id: calendar.abfallkalender_2026
+        data:
+          start_date_time: "{{ morgen_start }}"
+          end_date_time: "{{ morgen_ende }}"
+        response_variable: muell_events
+
+      - variables:
+          ev: "{{ muell_events.get('calendar.abfallkalender_2026', {}).get('events', []) }}"
+
+          ist_rest: >-
+            {% set ns = namespace(found=false) %}
+            {% for e in ev %}
+              {% set s = (e.get('summary','') | string) | lower | trim %}
+              {% if 'restm' in s %}
+                {% set ns.found = true %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.found }}
+
+          ist_gelb: >-
+            {% set ns = namespace(found=false) %}
+            {% for e in ev %}
+              {% set s = (e.get('summary','') | string) | lower | trim %}
+              {% if 'gelb' in s %}
+                {% set ns.found = true %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.found }}
+
+          ist_papier: >-
+            {% set ns = namespace(found=false) %}
+            {% for e in ev %}
+              {% set s = (e.get('summary','') | string) | lower | trim %}
+              {% if 'papier' in s %}
+                {% set ns.found = true %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.found }}
+
+          text_liste: >-
+            {% set l = [] %}
+            {% if ist_rest %}{% set l = l + ['grüne Tonne'] %}{% endif %}
+            {% if ist_gelb %}{% set l = l + ['gelbe Tonne'] %}{% endif %}
+            {% if ist_papier %}{% set l = l + ['blaue Tonne'] %}{% endif %}
+            {{ l }}
+
+      - condition: template
+        value_template: "{{ text_liste | length > 0 }}"
+
+      - if:
+          - condition: template
+            value_template: "{{ ist_rest }}"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.muell_gruen_offen
+
+      - if:
+          - condition: template
+            value_template: "{{ ist_gelb }}"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.muell_gelb_offen
+
+      - if:
+          - condition: template
+            value_template: "{{ ist_papier }}"
+        then:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.muell_blau_offen
+
+      - variables:
+          msg: "Morgen wird {{ text_liste | join(' und ') }} abgeholt. Bitte rausstellen."
+
+      - service: "{{ notify_push }}"
+        data:
+          title: Mülltonnen
+          message: "{{ msg }}"
+
+      - service: notify.alexa_media
+        data:
+          target: "{{ alexa_target }}"
+          message: "{{ msg }}"
+          data:
+            type: announce
+
+
+  ########################################################
+  # Bestätigung per NFC Tag
+  ########################################################
+  - alias: Mülltonnen NFC Bestätigung
+    id: muell_nfc_bestaetigung
+    mode: single
+    trigger:
+      - platform: event
+        event_type: tag_scanned
+    variables:
+      notify_push: notify.notify
+    action:
+      - choose:
+          - conditions: "{{ trigger.event.data.tag_id == 'nfc_gruene_tonne' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.muell_gruen_offen
+              - service: "{{ notify_push }}"
+                data:
+                  title: Mülltonnen
+                  message: Grüne Tonne als erledigt markiert.
+
+          - conditions: "{{ trigger.event.data.tag_id == 'nfc_gelbe_tonne' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.muell_gelb_offen
+              - service: "{{ notify_push }}"
+                data:
+                  title: Mülltonnen
+                  message: Gelbe Tonne als erledigt markiert.
+
+          - conditions: "{{ trigger.event.data.tag_id == 'nfc_blaue_tonne' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.muell_blau_offen
+              - service: "{{ notify_push }}"
+                data:
+                  title: Mülltonnen
+                  message: Blaue Tonne als erledigt markiert.
+
+
+  ########################################################
+  # Bestätigung per Tablet Button
+  ########################################################
+  - alias: Mülltonnen Tablet Bestätigung
+    id: muell_tablet_bestaetigung
+    mode: single
+    trigger:
+      - platform: state
+        entity_id:
+          - input_button.muell_gruen_bestaetigen
+          - input_button.muell_gelb_bestaetigen
+          - input_button.muell_blau_bestaetigen
+    variables:
+      notify_push: notify.notify
+    action:
+      - choose:
+          - conditions: "{{ trigger.entity_id == 'input_button.muell_gruen_bestaetigen' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.muell_gruen_offen
+              - service: "{{ notify_push }}"
+                data:
+                  title: Mülltonnen
+                  message: Grüne Tonne als erledigt markiert.
+
+          - conditions: "{{ trigger.entity_id == 'input_button.muell_gelb_bestaetigen' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.muell_gelb_offen
+              - service: "{{ notify_push }}"
+                data:
+                  title: Mülltonnen
+                  message: Gelbe Tonne als erledigt markiert.
+
+          - conditions: "{{ trigger.entity_id == 'input_button.muell_blau_bestaetigen' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.muell_blau_offen
+              - service: "{{ notify_push }}"
+                data:
+                  title: Mülltonnen
+                  message: Blaue Tonne als erledigt markiert.
+
+
+  ########################################################
+  # 22:00 Uhr Eskalation (nur _2 ausführen)
+  ########################################################
+  - alias: Mülltonnen Eskalation 22 Uhr
+    id: muell_escalation_22_uhr
+    mode: single
+    trigger:
+      - platform: time
+        at: "22:00:00"
+
+    condition:
+      - condition: template
+        value_template: "{{ this.entity_id.endswith('_2') }}"
+      - condition: or
+        conditions:
+          - condition: state
+            entity_id: input_boolean.muell_gruen_offen
+            state: "on"
+          - condition: state
+            entity_id: input_boolean.muell_gelb_offen
+            state: "on"
+          - condition: state
+            entity_id: input_boolean.muell_blau_offen
+            state: "on"
+
+    variables:
+      notify_push: notify.notify
+      alexa_target: media_player.show_kuche
+      offene_tonnen: "{{ states('sensor.muelltonnen_offen_text') }}"
+      alexa_text: "Achtung. Müll ist noch offen. Bitte rausstellen: {{ offene_tonnen }}."
+    action:
+      - service: notify.alexa_media
+        data:
+          target: "{{ alexa_target }}"
+          message: "{{ alexa_text }}"
+          data:
+            type: announce
+      - service: "{{ notify_push }}"
+        data:
+          title: Mülltonnen
+          message: "{{ alexa_text }}"
+
+
+  ########################################################
+  # Reset morgens
+  ########################################################
+  - alias: Mülltonnen Reset morgens
+    id: muell_reset_morgens
+    mode: single
+    trigger:
+      - platform: time
+        at: "08:30:00"
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id:
+            - input_boolean.muell_gruen_offen
+            - input_boolean.muell_gelb_offen
+            - input_boolean.muell_blau_offen
+
+
+  ########################################################
+  # Optional: Reset beim Kalender Ende
+  ########################################################
+  - alias: Mülltonnen Reset nach Abfuhr (Kalender Ende)
+    id: muell_reset_nach_abfuhr_kalender_ende
+    mode: single
+    trigger:
+      - platform: calendar
+        entity_id: calendar.abfallkalender_2026
+        event: end
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id:
+            - input_boolean.muell_gruen_offen
+            - input_boolean.muell_gelb_offen
+            - input_boolean.muell_blau_offen

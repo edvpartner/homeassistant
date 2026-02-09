@@ -1,0 +1,221 @@
+# packages/helfer_kueche_statistiken.yaml
+# Counter und Helper für Küchen-Statistiken
+
+##############################################################################
+# COUNTER FÜR STATISTIKEN
+##############################################################################
+
+counter:
+  # Kühlschrank Türöffnungen
+  kuhlschrank_tur_offnungen:
+    name: Kühlschrank Türöffnungen
+    icon: mdi:fridge-alert
+    initial: 0
+    step: 1
+
+  # Eiswürfel Entnahmen
+  kuhlschrank_eiswurfel:
+    name: Kühlschrank Eiswürfel entnommen
+    icon: mdi:ice-pop
+    initial: 0
+    step: 1
+
+  # Crushed Ice Entnahmen
+  kuhlschrank_crushed_ice:
+    name: Kühlschrank Crushed Ice
+    icon: mdi:cube
+    initial: 0
+    step: 1
+
+  # Craft Ice produziert
+  kuhlschrank_craft_ice_produziert:
+    name: Craft Ice produziert
+    icon: mdi:cube-outline
+    initial: 0
+    step: 1
+
+  # Licht Automatik Heute
+  kuche_licht_auto_heute:
+    name: Küche Licht automatisch heute
+    icon: mdi:lightbulb-auto
+    initial: 0
+    step: 1
+
+  # Licht Manuell Heute
+  kuche_licht_manuell_heute:
+    name: Küche Licht manuell heute
+    icon: mdi:lightbulb-on
+    initial: 0
+    step: 1
+
+##############################################################################
+# INPUT NUMBER FÜR KALTWASSER
+##############################################################################
+
+input_number:
+  kuhlschrank_kaltwasser_ml:
+    name: Kaltwasser entnommen (ml)
+    min: 0
+    max: 100000
+    step: 100
+    unit_of_measurement: ml
+    icon: mdi:cup-water
+
+##############################################################################
+# SCRIPTS FÜR CRAFT ICE
+##############################################################################
+
+script:
+  # Craft Ice 3 Würfel
+  kuhlschrank_craft_ice_3:
+    alias: "Kühlschrank: Craft Ice 3 Würfel"
+    sequence:
+      - service: select.select_option
+        target:
+          entity_id: select.kuhlschrank_craft_ice_anzahl
+        data:
+          option: "3"
+      - service: notify.mobile_app
+        data:
+          title: "🧊 Craft Ice"
+          message: "Eingestellt auf 3 Eiswürfel"
+    mode: single
+
+  # Craft Ice 6 Würfel
+  kuhlschrank_craft_ice_6:
+    alias: "Kühlschrank: Craft Ice 6 Würfel"
+    sequence:
+      - service: select.select_option
+        target:
+          entity_id: select.kuhlschrank_craft_ice_anzahl
+        data:
+          option: "6"
+      - service: notify.mobile_app
+        data:
+          title: "🧊 Craft Ice"
+          message: "Eingestellt auf 6 Eiswürfel"
+    mode: single
+
+  # Eiswürfel entnommen (manuell zählen)
+  kuhlschrank_eiswurfel_entnommen:
+    alias: "Kühlschrank: Eiswürfel entnommen"
+    sequence:
+      - service: counter.increment
+        target:
+          entity_id: counter.kuhlschrank_eiswurfel
+    mode: single
+
+  # Crushed Ice entnommen
+  kuhlschrank_crushed_ice_entnommen:
+    alias: "Kühlschrank: Crushed Ice entnommen"
+    sequence:
+      - service: counter.increment
+        target:
+          entity_id: counter.kuhlschrank_crushed_ice
+    mode: single
+
+  # Kaltwasser entnommen (200ml)
+  kuhlschrank_kaltwasser_entnommen:
+    alias: "Kühlschrank: Kaltwasser 200ml"
+    sequence:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.kuhlschrank_kaltwasser_ml
+        data:
+          value: "{{ states('input_number.kuhlschrank_kaltwasser_ml') | int + 200 }}"
+    mode: single
+
+##############################################################################
+# AUTOMATIONEN FÜR ZÄHLER
+##############################################################################
+
+automation:
+  # Türöffnung zählen
+  - id: kuhlschrank_tur_counter
+    alias: "Kühlschrank: Tür geöffnet Counter"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.kuhlschrank_tur
+        from: "off"
+        to: "on"
+    action:
+      - service: counter.increment
+        target:
+          entity_id: counter.kuhlschrank_tur_offnungen
+    mode: single
+
+  # Licht automatisch gezählt
+  - id: kuche_licht_auto_counter
+    alias: "Küche: Licht automatisch Counter"
+    trigger:
+      - platform: state
+        entity_id: light.eg_kuchenspots
+        from: "off"
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.kuche_licht_durch_praesenz
+        state: "on"
+    action:
+      - service: counter.increment
+        target:
+          entity_id: counter.kuche_licht_auto_heute
+    mode: single
+
+  # Licht manuell gezählt
+  - id: kuche_licht_manuell_counter
+    alias: "Küche: Licht manuell Counter"
+    trigger:
+      - platform: state
+        entity_id: light.eg_kuchenspots
+        from: "off"
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.kuche_licht_durch_praesenz
+        state: "off"
+    action:
+      - service: counter.increment
+        target:
+          entity_id: counter.kuche_licht_manuell_heute
+    mode: single
+
+  # Counter zurücksetzen um Mitternacht
+  - id: kuche_counter_reset_mitternacht
+    alias: "Küche: Counter zurücksetzen um Mitternacht"
+    trigger:
+      - platform: time
+        at: "00:00:01"
+    action:
+      - service: counter.reset
+        target:
+          entity_id:
+            - counter.kuhlschrank_tur_offnungen
+            - counter.kuhlschrank_eiswurfel
+            - counter.kuhlschrank_crushed_ice
+            - counter.kuhlschrank_craft_ice_produziert
+            - counter.kuche_licht_auto_heute
+            - counter.kuche_licht_manuell_heute
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.kuhlschrank_kaltwasser_ml
+        data:
+          value: 0
+    mode: single
+
+  # Warnung bei zu langer Türöffnung
+  - id: kuhlschrank_tur_zu_lange_offen
+    alias: "Kühlschrank: Tür zu lange offen Warnung"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.kuhlschrank_tur
+        to: "on"
+        for: "00:02:00"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "⚠️ Kühlschrank"
+          message: "Tür ist seit 2 Minuten offen!"
+          data:
+            priority: high
+    mode: single

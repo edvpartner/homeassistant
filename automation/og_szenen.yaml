@@ -1,0 +1,177 @@
+# packages/automation/og_szenen.yaml
+# Szenen für Obergeschoss
+
+script:
+  # ============================================================
+  # GUTE NACHT SZENE
+  # ============================================================
+  og_gute_nacht_szene:
+    alias: "OG: Gute Nacht Szene"
+    icon: mdi:weather-night
+    sequence:
+      # Alle Hauptlichter aus
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.og_flur_licht
+            - light.og_schlafzimmer_deckenlicht
+            - light.og_ella_licht
+            - light.og_lotta_licht
+            - light.og_badezimmer_deckenlicht
+            - light.treppenlicht
+        data:
+          transition: 3
+      
+      # Nachttischlampen dimmen
+      - service: switch.turn_on
+        target:
+          entity_id:
+            - switch.og_nachttischleuchte_bastian
+            - switch.og_nachttischleuchte_yvonne
+      
+      # Fernseher aus
+      - service: switch.turn_off
+        target:
+          entity_id:
+            - switch.og_fernseher_schlafzimmer
+            - switch.og_fernseher_ella
+            - switch.og_fernseher_lotta
+      
+      # Schminktische aus
+      - service: switch.turn_off
+        target:
+          entity_id:
+            - switch.og_schminktisch_lotta_licht
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.og_schminktisch_ella_licht
+      
+      # Benachrichtigung
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "🌙 Gute Nacht"
+          message: "Obergeschoss wurde für die Nacht vorbereitet"
+    mode: single
+
+  # ============================================================
+  # GUTEN MORGEN SZENE
+  # ============================================================
+  og_guten_morgen_szene:
+    alias: "OG: Guten Morgen Szene"
+    icon: mdi:weather-sunny
+    sequence:
+      # Nur wenn noch dunkel
+      - condition: numeric_state
+        entity_id: sensor.helligkeit_flur_og
+        below: 100
+      
+      # Flur & Treppe
+      - service: light.turn_on
+        target:
+          entity_id:
+            - light.og_flur_licht
+            - light.treppenlicht
+        data:
+          brightness_pct: 80
+          transition: 5
+      
+      # Badezimmer
+      - service: light.turn_on
+        target:
+          entity_id: light.og_badezimmer_deckenlicht
+        data:
+          brightness_pct: 100
+          transition: 2
+      
+      # Schlafzimmer sanft
+      - service: light.turn_on
+        target:
+          entity_id: light.og_schlafzimmer_deckenlicht
+        data:
+          brightness_pct: 50
+          kelvin: 3000
+          transition: 10
+      
+      # Benachrichtigung
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "☀️ Guten Morgen"
+          message: "Obergeschoss wurde für den Tag vorbereitet"
+    mode: single
+
+  # ============================================================
+  # KINDER-SZENE (Abends für Ella & Lotta)
+  # ============================================================
+  og_kinder_schlafenszeit:
+    alias: "OG: Kinder Schlafenszeit"
+    icon: mdi:sleep
+    sequence:
+      # Kinderzimmer dimmen
+      - service: light.turn_on
+        target:
+          entity_id:
+            - light.og_ella_licht
+            - light.og_lotta_licht
+        data:
+          brightness_pct: 20
+          kelvin: 2700
+          transition: 5
+      
+      # Nachttischlampen an
+      - service: switch.turn_on
+        target:
+          entity_id:
+            - switch.og_nachttischlampe_ella
+      - service: light.turn_on
+        target:
+          entity_id: light.og_nachttischlampe_lotta
+        data:
+          brightness_pct: 30
+      
+      # Fernseher aus
+      - service: switch.turn_off
+        target:
+          entity_id:
+            - switch.og_fernseher_ella
+            - switch.og_fernseher_lotta
+      
+      # Schminktische aus
+      - service: switch.turn_off
+        target:
+          entity_id:
+            - switch.og_schminktisch_lotta_licht
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.og_schminktisch_ella_licht
+    mode: single
+
+  # ============================================================
+  # ALLES AUS (Notfall / Urlaub)
+  # ============================================================
+  og_alles_aus:
+    alias: "OG: Alles ausschalten"
+    icon: mdi:power-off
+    sequence:
+      - service: light.turn_off
+        target:
+          entity_id: all
+        data:
+          transition: 1
+      
+      - service: switch.turn_off
+        target:
+          entity_id:
+            - switch.og_nachttischleuchte_bastian
+            - switch.og_nachttischleuchte_yvonne
+            - switch.og_nachttischlampe_ella
+            - switch.og_schminktisch_lotta_licht
+            - switch.og_fernseher_schlafzimmer
+            - switch.og_fernseher_ella
+            - switch.og_fernseher_lotta
+            - switch.og_schrank_ella
+            - switch.og_schlafzimmer_sideboard_rechts
+            - switch.og_schlafzimmer_sideboard_links
+            - switch.og_flursteckdose_fensterbank
+    mode: single

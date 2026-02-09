@@ -1,0 +1,152 @@
+# packages/automation_heizung_gaestewc.yaml
+
+# Statistik-Sensoren für Energie heute
+template:
+  - sensor:
+      - name: "Gäste WC Heizkörper Energie heute"
+        unique_id: gaeste_wc_heizkorper_energie_heute
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total_increasing
+        state: >
+          {% set today = now().date() %}
+          {% set energy = states('sensor.gaste_wc_heizkorper_energie') | float(0) %}
+          {% set last_reset = states('input_datetime.gaeste_wc_heizung_last_on') %}
+          {% if last_reset not in ['unknown', 'unavailable'] %}
+            {% set last_date = as_datetime(last_reset).date() %}
+            {% if last_date == today %}
+              {{ energy }}
+            {% else %}
+              0
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
+
+      - name: "Gäste WC Heizkörper Betriebsstunden heute"
+        unique_id: gaeste_wc_heizkorper_betriebsstunden_heute
+        unit_of_measurement: "h"
+        icon: mdi:clock-outline
+        state: >
+          {% set total_hours = states('sensor.gaste_wc_heizkorper_betriebsstunden') | float(0) %}
+          {% set today = now().date() %}
+          {% set last_reset = state_attr('sensor.gaste_wc_heizkorper_betriebsstunden_heute', 'last_reset') %}
+          {% if last_reset %}
+            {% set last_date = as_datetime(last_reset).date() %}
+            {% if last_date != today %}
+              0
+            {% else %}
+              {{ total_hours }}
+            {% endif %}
+          {% else %}
+            0
+          {% endif %}
+
+# Automationen
+automation:
+  # Morgens 5:00 - 8:00 Uhr
+  - id: gaeste_wc_heizkoerper_morgens_ein
+    alias: "Gäste WC Heizkörper morgens EIN"
+    trigger:
+      - platform: time
+        at: "05:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.urlaubsmodus
+        state: "off"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_heizung_wintermodus
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_heizung_manuell_gesperrt
+        state: "off"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.eg_bad_heizkorper
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.gaeste_wc_heizung_last_on
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    mode: single
+
+  - id: gaeste_wc_heizkoerper_morgens_aus
+    alias: "Gäste WC Heizkörper morgens AUS"
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    condition:
+      - condition: state
+        entity_id: switch.eg_bad_heizkorper
+        state: "on"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.eg_bad_heizkorper
+    mode: single
+
+  # Abends 19:00 - 20:30 Uhr
+  - id: gaeste_wc_heizkoerper_abends_ein
+    alias: "Gäste WC Heizkörper abends EIN"
+    trigger:
+      - platform: time
+        at: "19:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.urlaubsmodus
+        state: "off"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_heizung_wintermodus
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_heizung_manuell_gesperrt
+        state: "off"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.eg_bad_heizkorper
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.gaeste_wc_heizung_last_on
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+    mode: single
+
+  - id: gaeste_wc_heizkoerper_abends_aus
+    alias: "Gäste WC Heizkörper abends AUS"
+    trigger:
+      - platform: time
+        at: "20:30:00"
+    condition:
+      - condition: state
+        entity_id: switch.eg_bad_heizkorper
+        state: "on"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.eg_bad_heizkorper
+    mode: single
+
+  # Sicherheits-Automation: Heizkörper ausschalten bei Urlaubsmodus oder Sommermodus
+  - id: gaeste_wc_heizkoerper_sicherheit_aus
+    alias: "Gäste WC Heizkörper Sicherheit AUS"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.urlaubsmodus
+        to: "on"
+      - platform: state
+        entity_id: input_boolean.gaeste_wc_heizung_wintermodus
+        to: "off"
+      - platform: state
+        entity_id: input_boolean.gaeste_wc_heizung_manuell_gesperrt
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: switch.eg_bad_heizkorper
+        state: "on"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.eg_bad_heizkorper
+    mode: single

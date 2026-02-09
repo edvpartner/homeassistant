@@ -1,0 +1,364 @@
+###############################################################################
+# Tibber Dynamisches Batterieladen
+# Diese Automatisierungen laden den Batteriespeicher bei günstigen Strompreisen
+###############################################################################
+
+# Hilfsvariablen für die Steuerung
+input_boolean:
+  tibber_smart_charging_enabled:
+    name: Tibber Smart Charging aktiviert
+    icon: mdi:battery-charging
+    initial: true
+
+  tibber_battery_charging_active:
+    name: Tibber Batterieladung aktiv
+    icon: mdi:battery-charging-high
+    initial: false
+
+input_number:
+  tibber_price_threshold:
+    name: Preis-Schwellenwert
+    min: 0
+    max: 50
+    step: 0.5
+    unit_of_measurement: "ct/kWh"
+    icon: mdi:currency-eur
+    initial: 15
+
+  tibber_min_battery_soc:
+    name: Minimaler Ladezustand für Smart Charging
+    min: 10
+    max: 50
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:battery-50
+    initial: 20
+
+  tibber_target_soc:
+    name: Ziel-Ladezustand bei günstigem Strom
+    min: 50
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:battery-charging-100
+    initial: 90
+
+  tibber_charge_power:
+    name: Ladeleistung bei Smart Charging
+    min: 1000
+    max: 18000
+    step: 500
+    unit_of_measurement: "W"
+    icon: mdi:lightning-bolt
+    initial: 10000
+
+# Template Sensoren für bessere Übersicht
+template:
+  - sensor:
+      - name: "Tibber Aktueller Preis"
+        unique_id: tibber_current_price_ct
+        unit_of_measurement: "ct/kWh"
+        state: >
+          {% if states('sensor.electricity_price_elabgrando') != 'unavailable' %}
+            {{ (states('sensor.electricity_price_elabgrando') | float * 100) | round(2) }}
+          {% else %}
+            0
+          {% endif %}
+        icon: mdi:currency-eur
+
+      - name: "Tibber Nächste günstige Stunde"
+        unique_id: tibber_next_cheap_hour
+        state: >
+          {% set ns = namespace(cheapest_time='', cheapest_price=999) %}
+          {% set price_threshold = states('input_number.tibber_price_threshold') | float %}
+          {% for i in range(24) %}
+            {% set hour_price = state_attr('sensor.electricity_price_elabgrando', 'raw_today')[i]['total'] * 100 if state_attr('sensor.electricity_price_elabgrando', 'raw_today') and state_attr('sensor.electricity_price_elabgrando', 'raw_today')[i] else 999 %}
+            {% if hour_price < price_threshold and hour_price < ns.cheapest_price %}
+              {% set ns.cheapest_time = state_attr('sensor.electricity_price_elabgrando', 'raw_today')[i]['start'] %}
+              {% set ns.cheapest_price = hour_price %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.cheapest_time if ns.cheapest_time != '' else 'Keine' }}
+        icon: mdi:clock-outline
+
+      - name: "Tibber Nächster günstiger Preis"
+        unique_id: tibber_next_cheap_price
+        unit_of_measurement: "ct/kWh"
+        state: >
+          {% set ns = namespace(cheapest_price=999) %}
+          {% set price_threshold = states('input_number.tibber_price_threshold') | float %}
+          {% for i in range(24) %}
+            {% set hour_price = state_attr('sensor.electricity_price_elabgrando', 'raw_today')[i]['total'] * 100 if state_attr('sensor.electricity_price_elabgrando', 'raw_today') and state_attr('sensor.electricity_price_elabgrando', 'raw_today')[i] else 999 %}
+            {% if hour_price < price_threshold and hour_price < ns.cheapest_price %}
+              {% set ns.cheapest_price = hour_price %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.cheapest_price | round(2) if ns.cheapest_price != 999 else 0 }}
+        icon: mdi:currency-eur
+
+  - binary_sensor:
+      - name: "Tibber Günstiger Strompreis"
+        unique_id: tibber_cheap_electricity
+        state: >
+          {% set current_price = states('sensor.tibber_aktueller_preis') | float %}
+          {% set threshold = states('input_number.tibber_price_threshold') | float %}
+          {{ current_price <= threshold }}
+        icon: >
+          {% if is_state('binary_sensor.tibber_gunstiger_strompreis', 'on') %}
+            mdi:currency-eur-off
+          {% else %}
+            mdi:currency-eur
+          {% endif %}
+
+###############################################################################
+# AUTOMATISIERUNGEN
+###############################################################################
+
+automation:
+  # Batterie laden bei günstigem Strompreis
+  - id: tibber_charge_battery_cheap_price
+    alias: "Tibber: Batterie laden bei günstigem Preis"
+    description: "Lädt die Batterie automatisch, wenn der Strompreis günstig ist"
+    trigger:
+      # Prüfe jede Stunde
+      - platform: time_pattern
+        minutes: "5"
+    condition:
+      - condition: state
+        entity_id: input_boolean.tibber_smart_charging_enabled
+        state: "on"
+      # Nur laden wenn Batterie unter Ziel-SOC
+      - condition: template
+        value_template: >
+          {{ states('sensor.battery_level') | float < states('input_number.tibber_target_soc') | float }}
+      # Strompreis unter Schwellenwert
+      - condition: state
+        entity_id: binary_sensor.tibber_gunstiger_strompreis
+        state: "on"
+      # Nur nachts oder bei wenig Solar (keine Verschwendung von eigenem Strom)
+      - condition: or
+        conditions:
+          - condition: sun
+            after: sunset
+          - condition: sun
+            before: sunrise
+          - condition: numeric_state
+            entity_id: sensor.total_dc_power
+            below: 500
+    action:
+      # Benachrichtigung senden
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "🔋 Tibber Smart Charging"
+          message: >
+            Batterieladung gestartet bei {{ states('sensor.tibber_aktueller_preis') }} ct/kWh
+            (Schwellenwert: {{ states('input_number.tibber_price_threshold') }} ct/kWh)
+          data:
+            tag: tibber_charging
+            group: tibber
+
+      # Ladeleistung setzen
+      - service: number.set_value
+        target:
+          entity_id: number.battery_charge_power_set
+        data:
+          value: "{{ states('input_number.tibber_charge_power') }}"
+
+      # Status setzen
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.tibber_battery_charging_active
+
+      # Optional: Ladezeit-Fenster aktivieren
+      - service: select.select_option
+        target:
+          entity_id: select.ems_mode
+        data:
+          option: "Forced mode"
+
+    mode: single
+
+  # Ladung stoppen wenn Ziel erreicht oder Preis zu hoch
+  - id: tibber_stop_charging
+    alias: "Tibber: Batterieladung stoppen"
+    description: "Stoppt die Ladung wenn Ziel-SOC erreicht oder Preis zu hoch"
+    trigger:
+      # Prüfe regelmäßig
+      - platform: time_pattern
+        minutes: "10"
+      # Oder bei SOC-Änderung
+      - platform: state
+        entity_id: sensor.battery_level
+      # Oder bei Preisänderung
+      - platform: state
+        entity_id: sensor.tibber_aktueller_preis
+    condition:
+      - condition: state
+        entity_id: input_boolean.tibber_battery_charging_active
+        state: "on"
+      # Stoppe wenn eine der Bedingungen zutrifft
+      - condition: or
+        conditions:
+          # Ziel-SOC erreicht
+          - condition: template
+            value_template: >
+              {{ states('sensor.battery_level') | float >= states('input_number.tibber_target_soc') | float }}
+          # Preis ist nicht mehr günstig
+          - condition: state
+            entity_id: binary_sensor.tibber_gunstiger_strompreis
+            state: "off"
+          # Smart Charging wurde deaktiviert
+          - condition: state
+            entity_id: input_boolean.tibber_smart_charging_enabled
+            state: "off"
+    action:
+      # Benachrichtigung
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "🔋 Tibber Smart Charging"
+          message: >
+            Batterieladung gestoppt. Aktueller SOC: {{ states('sensor.battery_level') }}%
+            {% if states('sensor.battery_level') | float >= states('input_number.tibber_target_soc') | float %}
+            (Ziel erreicht)
+            {% elif is_state('binary_sensor.tibber_gunstiger_strompreis', 'off') %}
+            (Preis zu hoch: {{ states('sensor.tibber_aktueller_preis') }} ct/kWh)
+            {% endif %}
+          data:
+            tag: tibber_charging
+            group: tibber
+
+      # Status zurücksetzen
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.tibber_battery_charging_active
+
+      # EMS Mode zurück auf automatisch
+      - service: select.select_option
+        target:
+          entity_id: select.ems_mode
+        data:
+          option: "Self-consumption mode"
+
+    mode: single
+
+  # Tägliche Benachrichtigung über günstige Stunden
+  - id: tibber_daily_price_notification
+    alias: "Tibber: Tägliche Preisinformation"
+    description: "Sendet eine tägliche Übersicht über die günstigsten Strompreise"
+    trigger:
+      - platform: time
+        at: "20:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.tibber_smart_charging_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "💰 Tibber Preisübersicht"
+          message: >
+            Nächste günstige Stunde: {{ states('sensor.tibber_nachste_gunstige_stunde') }}
+            Preis: {{ states('sensor.tibber_nachster_gunstiger_preis') }} ct/kWh
+            Aktueller Ladezustand: {{ states('sensor.battery_level') }}%
+          data:
+            tag: tibber_daily
+            group: tibber
+    mode: single
+
+  # Not-Ladung bei niedrigem SOC (unabhängig vom Preis)
+  - id: tibber_emergency_charging
+    alias: "Tibber: Not-Ladung bei niedrigem SOC"
+    description: "Lädt die Batterie auch bei hohen Preisen, wenn SOC zu niedrig"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.battery_level
+        below: input_number.tibber_min_battery_soc
+        for:
+          minutes: 10
+    condition:
+      - condition: state
+        entity_id: input_boolean.tibber_smart_charging_enabled
+        state: "on"
+      # Nur nachts oder bei wenig Solar
+      - condition: or
+        conditions:
+          - condition: sun
+            after: sunset
+          - condition: sun
+            before: sunrise
+          - condition: numeric_state
+            entity_id: sensor.total_dc_power
+            below: 500
+    action:
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "⚠️ Tibber Not-Ladung"
+          message: >
+            Batterie-SOC kritisch niedrig ({{ states('sensor.battery_level') }}%).
+            Not-Ladung gestartet trotz Preis von {{ states('sensor.tibber_aktueller_preis') }} ct/kWh
+          data:
+            tag: tibber_emergency
+            group: tibber
+            priority: high
+
+      # Forced Charging aktivieren
+      - service: select.select_option
+        target:
+          entity_id: select.ems_mode
+        data:
+          option: "Forced mode"
+
+      - service: number.set_value
+        target:
+          entity_id: number.battery_charge_power_set
+        data:
+          value: 5000  # Reduzierte Ladeleistung bei Not-Ladung
+
+    mode: single
+
+###############################################################################
+# SKRIPTE für manuelle Steuerung
+###############################################################################
+
+script:
+  tibber_force_charge_now:
+    alias: "Tibber: Jetzt laden erzwingen"
+    sequence:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.tibber_battery_charging_active
+
+      - service: number.set_value
+        target:
+          entity_id: number.battery_charge_power_set
+        data:
+          value: "{{ states('input_number.tibber_charge_power') }}"
+
+      - service: select.select_option
+        target:
+          entity_id: select.ems_mode
+        data:
+          option: "Forced mode"
+
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "🔋 Manuelle Ladung"
+          message: "Batterieladung manuell gestartet"
+
+  tibber_stop_charging_now:
+    alias: "Tibber: Ladung jetzt stoppen"
+    sequence:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.tibber_battery_charging_active
+
+      - service: select.select_option
+        target:
+          entity_id: select.ems_mode
+        data:
+          option: "Self-consumption mode"
+
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "🔋 Ladung gestoppt"
+          message: "Batterieladung manuell gestoppt"

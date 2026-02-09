@@ -1,0 +1,451 @@
+###############################################################################
+# Reolink Türklingel Integration
+# Automatisierungen für Türklingel mit Alexa-Ankündigungen und Video-Stream
+###############################################################################
+
+# HINWEIS: Bitte ersetze die Entity-Namen mit deinen tatsächlichen Reolink und Alexa Entity-IDs
+# Du kannst die Entity-IDs in Home Assistant unter Entwicklertools -> Zustände finden
+
+###############################################################################
+# KONFIGURATION - PASSE DIESE WERTE AN
+###############################################################################
+
+input_boolean:
+  doorbell_announcements_enabled:
+    name: Türklingel-Ankündigungen aktiviert
+    icon: mdi:bell-ring
+    initial: true
+
+  doorbell_motion_announcements:
+    name: Bewegungsankündigungen aktiviert
+    icon: mdi:walk
+    initial: true
+
+input_select:
+  doorbell_announcement_volume:
+    name: Ankündigungs-Lautstärke
+    options:
+      - "Leise (3)"
+      - "Normal (5)"
+      - "Laut (7)"
+      - "Sehr laut (9)"
+    initial: "Normal (5)"
+    icon: mdi:volume-high
+
+input_number:
+  doorbell_motion_cooldown:
+    name: Bewegungs-Cooldown (Minuten)
+    min: 1
+    max: 30
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:timer-outline
+    initial: 5
+
+###############################################################################
+# TEMPLATE SENSOREN
+###############################################################################
+
+template:
+  - sensor:
+      - name: "Türklingel Letzter Klingel-Zeitstempel"
+        unique_id: doorbell_last_ring_timestamp
+        state: >
+          {{ states('binary_sensor.reolink_doorbell_visitor') }}
+        attributes:
+          last_ring: >
+            {% if is_state('binary_sensor.reolink_doorbell_visitor', 'on') %}
+              {{ now().strftime('%H:%M:%S') }}
+            {% else %}
+              {{ state_attr('sensor.turklingel_letzter_klingel_zeitstempel', 'last_ring') }}
+            {% endif %}
+
+  - binary_sensor:
+      - name: "Jemand vor der Tür"
+        unique_id: someone_at_door
+        state: >
+          {{ is_state('binary_sensor.reolink_doorbell_motion', 'on') or 
+             is_state('binary_sensor.reolink_doorbell_visitor', 'on') }}
+        icon: >
+          {% if is_state('binary_sensor.jemand_vor_der_tur', 'on') %}
+            mdi:human-greeting
+          {% else %}
+            mdi:door-closed
+          {% endif %}
+
+###############################################################################
+# AUTOMATISIERUNGEN
+###############################################################################
+
+automation:
+  # Hauptautomatisierung: Türklingel wurde gedrückt
+  - id: doorbell_ring_notification
+    alias: "Türklingel: Ankündigung bei Klingeln"
+    description: "Spielt Ankündigung auf allen Echo-Geräten und zeigt Stream auf Echo Shows"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.reolink_doorbell_visitor
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.doorbell_announcements_enabled
+        state: "on"
+    action:
+      # Lautstärke ermitteln
+      - variables:
+          volume: >
+            {% if is_state('input_select.doorbell_announcement_volume', 'Leise (3)') %}
+              0.3
+            {% elif is_state('input_select.doorbell_announcement_volume', 'Normal (5)') %}
+              0.5
+            {% elif is_state('input_select.doorbell_announcement_volume', 'Laut (7)') %}
+              0.7
+            {% else %}
+              0.9
+            {% endif %}
+
+      # Ankündigung auf ALLEN Alexa-Geräten
+      - service: notify.alexa_media
+        data:
+          message: "Es klingelt an der Haustür. Jemand steht vor der Tür."
+          data:
+            type: announce
+            method: all  # Auf allen Geräten
+
+      # Spezifische Ankündigung mit Details auf bestimmten Geräten
+      # WICHTIG: Ersetze "media_player.echo_wohnzimmer" mit deinen Echo-Entity-IDs
+      - service: notify.alexa_media_echo_wohnzimmer
+        data:
+          message: "Achtung! Es hat gerade an der Haustür geklingelt."
+          data:
+            type: tts
+
+      # Video-Stream auf Echo Show Geräten anzeigen
+      # WICHTIG: Ersetze die Entity-IDs mit deinen Echo Show Geräten
+      - service: camera.play_stream
+        target:
+          entity_id:
+            - media_player.echo_show_kuche
+            - media_player.echo_show_wohnzimmer
+            - media_player.echo_show_schlafzimmer
+        data:
+          media_content_id: "camera.reolink_doorbell"
+          media_content_type: "application/vnd.apple.mpegurl"
+
+      # Alternative: Snapshot auf Echo Shows anzeigen
+      - delay:
+          seconds: 2
+      - service: alexa_media.update_display
+        target:
+          entity_id:
+            - media_player.echo_show_kuche
+            - media_player.echo_show_wohnzimmer
+        data:
+          title: "Haustür"
+          body: "Jemand hat geklingelt"
+          display_url: >
+            {{ state_attr('camera.reolink_doorbell', 'entity_picture') }}
+
+      # Mobile Benachrichtigung mit Snapshot
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🔔 Türklingel"
+          message: "Jemand hat an der Haustür geklingelt"
+          data:
+            image: "/api/camera_proxy/camera.reolink_doorbell"
+            tag: doorbell
+            group: security
+            priority: high
+            ttl: 0
+            actions:
+              - action: "SHOW_CAMERA"
+                title: "Kamera öffnen"
+              - action: "UNLOCK_DOOR"
+                title: "Tür öffnen"
+
+      # Lichter einschalten als visuelles Signal (optional)
+      - service: light.turn_on
+        target:
+          entity_id: light.eingangsbereich
+        data:
+          brightness: 255
+          kelvin: 4000
+
+      # Log-Eintrag erstellen
+      - service: logbook.log
+        data:
+          name: "Türklingel"
+          message: "Es hat geklingelt um {{ now().strftime('%H:%M:%S') }}"
+          entity_id: binary_sensor.reolink_doorbell_visitor
+
+    mode: single
+
+  # Bewegungserkennung vor der Tür
+  - id: doorbell_motion_detection
+    alias: "Türklingel: Ankündigung bei Bewegung"
+    description: "Warnt BEVOR jemand klingelt"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.reolink_doorbell_motion
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.doorbell_motion_announcements
+        state: "on"
+      # Nicht ankündigen wenn gerade geklingelt wurde (Cooldown)
+      - condition: template
+        value_template: >
+          {% set last_ring = states('binary_sensor.reolink_doorbell_visitor') %}
+          {% set last_change = as_timestamp(states.binary_sensor.reolink_doorbell_visitor.last_changed) %}
+          {{ (as_timestamp(now()) - last_change) > 60 }}
+    action:
+      # Leise Ankündigung auf ausgewählten Geräten
+      - service: notify.alexa_media_echo_kuche
+        data:
+          message: "Achtung. Jemand nähert sich der Haustür."
+          data:
+            type: announce
+
+      - service: notify.alexa_media_echo_wohnzimmer
+        data:
+          message: "Bewegung an der Haustür erkannt."
+          data:
+            type: announce
+
+      # Diskretes Licht einschalten
+      - service: light.turn_on
+        target:
+          entity_id: light.eingangsbereich
+        data:
+          brightness: 150
+          kelvin: 3000
+
+      # Mobile Benachrichtigung (leiser)
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "👁️ Bewegung an der Haustür"
+          message: "Jemand nähert sich der Haustür"
+          data:
+            image: "/api/camera_proxy/camera.reolink_doorbell"
+            tag: doorbell_motion
+            group: security
+            priority: default
+
+    mode: single
+
+  # Stream automatisch beenden nach 2 Minuten
+  - id: doorbell_stop_stream
+    alias: "Türklingel: Stream automatisch beenden"
+    description: "Beendet den Video-Stream nach 2 Minuten"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.reolink_doorbell_visitor
+        to: "on"
+        for:
+          minutes: 2
+    action:
+      - service: media_player.media_stop
+        target:
+          entity_id:
+            - media_player.echo_show_kuche
+            - media_player.echo_show_wohnzimmer
+            - media_player.echo_show_schlafzimmer
+
+    mode: single
+
+  # Nachtmodus: Reduzierte Lautstärke zwischen 22:00 und 07:00
+  - id: doorbell_night_mode
+    alias: "Türklingel: Nachtmodus"
+    description: "Leise Ankündigungen nachts"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.reolink_doorbell_visitor
+        to: "on"
+    condition:
+      - condition: state
+        entity_id: input_boolean.doorbell_announcements_enabled
+        state: "on"
+      - condition: time
+        after: "22:00:00"
+        before: "07:00:00"
+    action:
+      # Nur leise Ankündigung
+      - service: notify.alexa_media
+        data:
+          message: "Jemand ist an der Tür."
+          data:
+            type: announce
+            method: all
+
+      # Kein Stream, nur Snapshot
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🔔 Türklingel (Nachtmodus)"
+          message: "Jemand hat geklingelt um {{ now().strftime('%H:%M') }}"
+          data:
+            image: "/api/camera_proxy/camera.reolink_doorbell"
+            tag: doorbell_night
+            group: security
+            priority: high
+
+    mode: single
+
+  # Abwesenheitsmodus: Erweiterte Benachrichtigungen
+  - id: doorbell_away_mode
+    alias: "Türklingel: Abwesenheitsmodus"
+    description: "Besondere Benachrichtigungen wenn niemand zuhause"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.reolink_doorbell_visitor
+        to: "on"
+    condition:
+      # Prüfe ob niemand zuhause ist
+      - condition: state
+        entity_id: zone.home
+        state: "0"
+    action:
+      # Dringende Benachrichtigung
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🚨 Türklingel - Niemand zuhause!"
+          message: "Jemand hat geklingelt während das Haus leer ist"
+          data:
+            image: "/api/camera_proxy/camera.reolink_doorbell"
+            tag: doorbell_away
+            group: security
+            priority: high
+            ttl: 0
+            actions:
+              - action: "VIEW_CAMERA"
+                title: "Live-Stream öffnen"
+              - action: "CALL_POLICE"
+                title: "Verdächtig? Polizei rufen"
+
+      # Video-Clip speichern
+      - service: camera.snapshot
+        target:
+          entity_id: camera.reolink_doorbell
+        data:
+          filename: "/config/www/doorbell_snapshots/{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
+
+      # Log mit Zeitstempel
+      - service: logbook.log
+        data:
+          name: "Türklingel - Abwesenheit"
+          message: >
+            WARNUNG: Türklingel aktiviert während niemand zuhause ist 
+            ({{ now().strftime('%d.%m.%Y %H:%M:%S') }})
+          entity_id: binary_sensor.reolink_doorbell_visitor
+
+    mode: single
+
+###############################################################################
+# SKRIPTE für manuelle Aktionen
+###############################################################################
+
+script:
+  doorbell_show_stream:
+    alias: "Türklingel: Stream manuell anzeigen"
+    sequence:
+      - service: camera.play_stream
+        target:
+          entity_id:
+            - media_player.echo_show_kuche
+            - media_player.echo_show_wohnzimmer
+        data:
+          media_content_id: "camera.reolink_doorbell"
+          media_content_type: "application/vnd.apple.mpegurl"
+
+  doorbell_take_snapshot:
+    alias: "Türklingel: Snapshot erstellen"
+    sequence:
+      - service: camera.snapshot
+        target:
+          entity_id: camera.reolink_doorbell
+        data:
+          filename: "/config/www/doorbell_snapshots/manual_{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg"
+
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "📷 Snapshot gespeichert"
+          message: "Türklingel-Snapshot wurde manuell erstellt"
+
+  doorbell_test_announcement:
+    alias: "Türklingel: Test-Ankündigung"
+    sequence:
+      - service: notify.alexa_media
+        data:
+          message: "Dies ist eine Test-Ankündigung der Türklingel-Integration."
+          data:
+            type: announce
+            method: all
+
+###############################################################################
+# DASHBOARD KARTE für Lovelace (optional)
+###############################################################################
+
+# Füge diese Karte zu deinem Dashboard hinzu:
+#
+# type: vertical-stack
+# cards:
+#   - type: custom:mushroom-title-card
+#     title: Türklingel
+#     subtitle: Reolink Video Doorbell
+#   
+#   - type: picture-entity
+#     entity: camera.reolink_doorbell
+#     camera_view: live
+#     aspect_ratio: 16:9
+#     show_state: false
+#     show_name: false
+#     tap_action:
+#       action: call-service
+#       service: script.doorbell_show_stream
+#   
+#   - type: horizontal-stack
+#     cards:
+#       - type: custom:mushroom-entity-card
+#         entity: binary_sensor.reolink_doorbell_visitor
+#         name: Klingel-Status
+#         icon: mdi:bell-ring
+#         icon_color: red
+#       
+#       - type: custom:mushroom-entity-card
+#         entity: binary_sensor.reolink_doorbell_motion
+#         name: Bewegung
+#         icon: mdi:motion-sensor
+#         icon_color: amber
+#   
+#   - type: entities
+#     entities:
+#       - entity: input_boolean.doorbell_announcements_enabled
+#         name: Ankündigungen
+#       - entity: input_boolean.doorbell_motion_announcements
+#         name: Bewegungs-Ankündigungen
+#       - entity: input_select.doorbell_announcement_volume
+#         name: Lautstärke
+#       - entity: input_number.doorbell_motion_cooldown
+#         name: Cooldown
+#   
+#   - type: horizontal-stack
+#     cards:
+#       - type: button
+#         name: Stream zeigen
+#         icon: mdi:video
+#         tap_action:
+#           action: call-service
+#           service: script.doorbell_show_stream
+#       
+#       - type: button
+#         name: Snapshot
+#         icon: mdi:camera
+#         tap_action:
+#           action: call-service
+#           service: script.doorbell_take_snapshot
+#       
+#       - type: button
+#         name: Test
+#         icon: mdi:test-tube
+#         tap_action:
+#           action: call-service
+#           service: script.doorbell_test_announcement

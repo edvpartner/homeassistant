@@ -1,0 +1,50 @@
+automation:
+  - alias: Außenbeleuchtung Zeitsteuerung
+    id: aussenbeleuchtung_zeitsteuerung
+    mode: single
+    trigger:
+      - platform: time
+        at: "05:30:00"
+        id: morning_on
+      - platform: time
+        at: "08:00:00"
+        id: morning_off
+      - platform: time
+        at: "17:30:00"
+        id: evening_on
+      - platform: time
+        at: "01:00:00"
+        id: evening_off
+    action:
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: morning_on
+            sequence:
+              - service: homeassistant.turn_on
+                target:
+                  entity_id: group.aussenbeleuchtung
+
+          - conditions:
+              - condition: trigger
+                id: morning_off
+            sequence:
+              - service: homeassistant.turn_off
+                target:
+                  entity_id: group.aussenbeleuchtung
+
+          - conditions:
+              - condition: trigger
+                id: evening_on
+            sequence:
+              - service: homeassistant.turn_on
+                target:
+                  entity_id: group.aussenbeleuchtung
+
+          - conditions:
+              - condition: trigger
+                id: evening_off
+            sequence:
+              - service: homeassistant.turn_off
+                target:
+                  entity_id: group.aussenbeleuchtung

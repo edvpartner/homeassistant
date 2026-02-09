@@ -1,0 +1,110 @@
+automation:
+  # 1. CO-Alarm: Wert über 50 ppm
+  - alias: "CO Alarm Wohnbereich"
+    id: co_alarm_wohnbereich
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.kombimelder_wohnbereich_kohlenmonoxid
+        above: 50
+    action:
+      # Push-Nachrichten an alle Handys / Tablet
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "CO-Alarm im Wohnbereich"
+          message: "Achtung: Der Kohlenmonoxid-Wert im Wohnbereich ist zu hoch! Bitte sofort lüften und den Bereich verlassen."
+      - service: notify.mobile_app_iphone
+        data:
+          title: "CO-Alarm im Wohnbereich"
+          message: "Achtung: Der Kohlenmonoxid-Wert im Wohnbereich ist zu hoch! Bitte sofort lüften und den Bereich verlassen."
+      - service: notify.mobile_app_iphone_vincent
+        data:
+          title: "CO-Alarm im Wohnbereich"
+          message: "Achtung: Der Kohlenmonoxid-Wert im Wohnbereich ist zu hoch! Bitte sofort lüften und den Bereich verlassen."
+      - service: notify.mobile_app_lotta
+        data:
+          title: "CO-Alarm im Wohnbereich"
+          message: "Achtung: Der Kohlenmonoxid-Wert im Wohnbereich ist zu hoch! Bitte sofort lüften und den Bereich verlassen."
+      - service: notify.mobile_app_tablett_eg
+        data:
+          title: "CO-Alarm im Wohnbereich"
+          message: "Achtung: Der Kohlenmonoxid-Wert im Wohnbereich ist zu hoch! Bitte sofort lüften und den Bereich verlassen."
+      - service: notify.mobile_app_yvonne_iphone
+        data:
+          title: "CO-Alarm im Wohnbereich"
+          message: "Achtung: Der Kohlenmonoxid-Wert im Wohnbereich ist zu hoch! Bitte sofort lüften und den Bereich verlassen."
+
+      # Durchsage auf Alexa / Lautsprecher – je Raum ein Gerät
+      - service: notify.wohnbereich_durchsagen
+        data:
+          message: "Achtung, Kohlenmonoxid Alarm im Wohnbereich. Bitte alle Fenster öffnen und das Haus verlassen."
+      - service: notify.show_kuche_durchsagen
+        data:
+          message: "Achtung, Kohlenmonoxid Alarm im Wohnbereich. Bitte alle Fenster öffnen und das Haus verlassen."
+      - service: notify.studio_keller_durchsagen
+        data:
+          message: "Achtung, Kohlenmonoxid Alarm im Wohnbereich. Bitte alle Fenster öffnen und das Haus verlassen."
+      - service: notify.ellas_echo_show_durchsagen
+        data:
+          message: "Achtung, Kohlenmonoxid Alarm im Wohnbereich. Bitte alle Fenster öffnen und das Haus verlassen."
+      - service: notify.lottas_show_5_durchsagen
+        data:
+          message: "Achtung, Kohlenmonoxid Alarm im Wohnbereich. Bitte alle Fenster öffnen und das Haus verlassen."
+      - service: notify.vincents_echo_durchsagen
+        data:
+          message: "Achtung, Kohlenmonoxid Alarm im Wohnbereich. Bitte alle Fenster öffnen und das Haus verlassen."
+    mode: single
+
+  # 2. Entwarnung: Wert wieder unter 30 ppm
+  - alias: "CO Entwarnung Wohnbereich"
+    id: co_alarm_wohnbereich_entwarnung
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.kombimelder_wohnbereich_kohlenmonoxid
+        below: 30
+    action:
+      # Push-Nachrichten Entwarnung
+      - service: notify.mobile_app_schum1_16promax
+        data:
+          title: "CO-Entwarnung im Wohnbereich"
+          message: "Die Kohlenmonoxid-Werte im Wohnbereich sind wieder im Normalbereich. Überprüfe trotzdem die Ursache."
+      - service: notify.mobile_app_iphone
+        data:
+          title: "CO-Entwarnung im Wohnbereich"
+          message: "Die Kohlenmonoxid-Werte im Wohnbereich sind wieder im Normalbereich. Überprüfe trotzdem die Ursache."
+      - service: notify.mobile_app_iphone_vincent
+        data:
+          title: "CO-Entwarnung im Wohnbereich"
+          message: "Die Kohlenmonoxid-Werte im Wohnbereich sind wieder im Normalbereich. Überprüfe trotzdem die Ursache."
+      - service: notify.mobile_app_lotta
+        data:
+          title: "CO-Entwarnung im Wohnbereich"
+          message: "Die Kohlenmonoxid-Werte im Wohnbereich sind wieder im Normalbereich. Überprüfe trotzdem die Ursache."
+      - service: notify.mobile_app_tablett_eg
+        data:
+          title: "CO-Entwarnung im Wohnbereich"
+          message: "Die Kohlenmonoxid-Werte im Wohnbereich sind wieder im Normalbereich. Überprüfe trotzdem die Ursache."
+      - service: notify.mobile_app_yvonne_iphone
+        data:
+          title: "CO-Entwarnung im Wohnbereich"
+          message: "Die Kohlenmonoxid-Werte im Wohnbereich sind wieder im Normalbereich. Überprüfe trotzdem die Ursache."
+
+      # Entwarnungs-Durchsage
+      - service: notify.wohnbereich_durchsagen
+        data:
+          message: "Entwarnung. Die Kohlenmonoxid Werte im Wohnbereich sind wieder im Normalbereich. Bitte überprüft trotzdem die Ursache."
+      - service: notify.show_kuche_durchsagen
+        data:
+          message: "Entwarnung. Die Kohlenmonoxid Werte im Wohnbereich sind wieder im Normalbereich. Bitte überprüft trotzdem die Ursache."
+      - service: notify.studio_keller_durchsagen
+        data:
+          message: "Entwarnung. Die Kohlenmonoxid Werte im Wohnbereich sind wieder im Normalbereich. Bitte überprüft trotzdem die Ursache."
+      - service: notify.ellas_echo_show_durchsagen
+        data:
+          message: "Entwarnung. Die Kohlenmonoxid Werte im Wohnbereich sind wieder im Normalbereich. Bitte überprüft trotzdem die Ursache."
+      - service: notify.lottas_show_5_durchsagen
+        data:
+          message: "Entwarnung. Die Kohlenmonoxid Werte im Wohnbereich sind wieder im Normalbereich. Bitte überprüft trotzdem die Ursache."
+      - service: notify.vincents_echo_durchsagen
+        data:
+          message: "Entwarnung. Die Kohlenmonoxid Werte im Wohnbereich sind wieder im Normalbereich. Bitte überprüft trotzdem die Ursache."
+    mode: single

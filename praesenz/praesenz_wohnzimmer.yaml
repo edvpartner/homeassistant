@@ -1,0 +1,148 @@
+# packages/praesenz/praesenz_wohnzimmer.yaml
+
+input_boolean:
+  wohnzimmer_licht_durch_praesenz:
+    name: Wohnzimmer Licht durch Präsenz
+    icon: mdi:motion-sensor
+
+timer:
+  wohnzimmer_licht_nachlauf:
+    name: Wohnzimmer Licht Nachlauf
+    duration: "00:10:00"
+
+automation:
+  # Präsenz erkannt: Licht einschalten (nur wenn dunkel genug)
+  - id: wohnzimmer_praesenz_licht_ein
+    alias: "Wohnzimmer: Präsenz schaltet Licht ein"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_wohnzimmer
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: light.eg_wohnzimmer_lampe
+        state: "off"
+      - condition: numeric_state
+        entity_id: sensor.helligkeit_wohnzimmer
+        below: 150
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.wohnzimmer_licht_nachlauf
+
+      - variables:
+          brightness_pct: >-
+            {% set h = now().hour %}
+            {% if 5 <= h < 9 %}
+              50
+            {% elif 18 <= h < 23 %}
+              80
+            {% else %}
+              100
+            {% endif %}
+
+      - service: light.turn_on
+        target:
+          entity_id: light.eg_wohnzimmer_lampe
+        data:
+          brightness_pct: "{{ brightness_pct }}"
+          transition: 2
+
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.wohnzimmer_licht_durch_praesenz
+
+  # Präsenz aus: Timer starten (10 Minuten)
+  - id: wohnzimmer_praesenz_aus_timer
+    alias: "Wohnzimmer: Präsenz aus startet 10 Min Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_wohnzimmer
+        to: "off"
+
+    condition:
+      - condition: state
+        entity_id: light.eg_wohnzimmer_lampe
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.wohnzimmer_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.wohnzimmer_licht_nachlauf
+        data:
+          duration: "00:10:00"
+
+  # Präsenz wieder an: Timer stoppen
+  - id: wohnzimmer_praesenz_an_stop_timer
+    alias: "Wohnzimmer: Präsenz stoppt Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_wohnzimmer
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: input_boolean.wohnzimmer_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.wohnzimmer_licht_nachlauf
+
+  # Timer fertig: Licht aus
+  - id: wohnzimmer_timer_fertig_licht_aus
+    alias: "Wohnzimmer: Nachlauf fertig, Licht aus"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.wohnzimmer_licht_nachlauf
+
+    condition:
+      - condition: state
+        entity_id: binary_sensor.prasenz_wohnzimmer
+        state: "off"
+      - condition: state
+        entity_id: light.eg_wohnzimmer_lampe
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.wohnzimmer_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.eg_wohnzimmer_lampe
+        data:
+          transition: 3
+
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.wohnzimmer_licht_durch_praesenz
+
+  # Cleanup: Licht manuell ausgeschaltet
+  - id: wohnzimmer_licht_aus_cleanup
+    alias: "Wohnzimmer: Licht aus, Timer und Flag zurücksetzen"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: light.eg_wohnzimmer_lampe
+        to: "off"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.wohnzimmer_licht_nachlauf
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.wohnzimmer_licht_durch_praesenz

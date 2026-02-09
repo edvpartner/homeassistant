@@ -1,0 +1,183 @@
+# packages/praesenz_kueche.yaml
+
+input_boolean:
+  kuche_licht_durch_praesenz:
+    name: Küche Licht durch Präsenz
+    icon: mdi:motion-sensor
+
+timer:
+  kuche_licht_manuell_timeout:
+    name: Küche Licht manuell Timeout
+    duration: "00:15:00"
+
+automation:
+  # 1) Präsenz: Licht ein (nur wenn dunkel genug und Licht aus)
+  - id: kuche_praesenz_licht_ein
+    alias: "Küche: Präsenz schaltet Licht ein"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_kuche
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: light.eg_kuchenspots
+        state: "off"
+      - condition: numeric_state
+        entity_id: sensor.helligkeit_kuche
+        below: 180
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.kuche_licht_manuell_timeout
+
+      - variables:
+          brightness_pct: >-
+            {% set h = now().hour %}
+            {% if 5 <= h < 9 or 18 <= h < 23 %}
+              50
+            {% else %}
+              100
+            {% endif %}
+
+      - service: light.turn_on
+        target:
+          entity_id: light.eg_kuchenspots
+        data:
+          brightness_pct: "{{ brightness_pct }}"
+
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.kuche_licht_durch_praesenz
+
+  # 2) Präsenz: Licht aus nach 45 Sekunden Inaktivität, aber nur wenn durch Präsenz eingeschaltet
+  - id: kuche_praesenz_licht_aus
+    alias: "Küche: Keine Präsenz schaltet Licht aus (45s Nachlauf)"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_kuche
+        to: "off"
+        for: "00:00:45"
+
+    condition:
+      - condition: state
+        entity_id: light.eg_kuchenspots
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.kuche_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.eg_kuchenspots
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.kuche_licht_durch_praesenz
+
+  # 3) Manuell eingeschaltet: immer 100 Prozent und Präsenz Flag entfernen
+  - id: kuche_licht_manuell_ein
+    alias: "Küche: Licht manuell eingeschaltet (immer 100%)"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: light.eg_kuchenspots
+        from: "off"
+        to: "on"
+
+    condition:
+      # Nur wenn es nicht durch Präsenz markiert wurde
+      - condition: state
+        entity_id: input_boolean.kuche_licht_durch_praesenz
+        state: "off"
+
+    action:
+      # Hart auf 100 Prozent setzen
+      - service: light.turn_on
+        target:
+          entity_id: light.eg_kuchenspots
+        data:
+          brightness_pct: 100
+
+      # Timer Logik: ohne Präsenz starten, mit Präsenz stoppen
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.prasenz_kuche
+                state: "off"
+            sequence:
+              - service: timer.start
+                target:
+                  entity_id: timer.kuche_licht_manuell_timeout
+                data:
+                  duration: "00:15:00"
+        default:
+          - service: timer.cancel
+            target:
+              entity_id: timer.kuche_licht_manuell_timeout
+
+  # 4) Manuell: Präsenz steuert den Timer
+  - id: kuche_manuell_timer_steuerung
+    alias: "Küche: Manuell Timeout an Präsenz koppeln"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_kuche
+
+    condition:
+      - condition: state
+        entity_id: light.eg_kuchenspots
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.kuche_licht_durch_praesenz
+        state: "off"
+
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.prasenz_kuche
+                state: "on"
+            sequence:
+              - service: timer.cancel
+                target:
+                  entity_id: timer.kuche_licht_manuell_timeout
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.prasenz_kuche
+                state: "off"
+            sequence:
+              - service: timer.start
+                target:
+                  entity_id: timer.kuche_licht_manuell_timeout
+                data:
+                  duration: "00:15:00"
+
+  # 5) Manuell Timeout abgelaufen: ausschalten nur wenn weiterhin keine Präsenz
+  - id: kuche_licht_manuell_timeout_fertig
+    alias: "Küche: Manuell nach 15 Minuten aus (wenn keine Präsenz)"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.kuche_licht_manuell_timeout
+
+    condition:
+      - condition: state
+        entity_id: light.eg_kuchenspots
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.kuche_licht_durch_praesenz
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.prasenz_kuche
+        state: "off"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.eg_kuchenspots

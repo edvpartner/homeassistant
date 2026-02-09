@@ -1,0 +1,89 @@
+# packages/praesenz/praesenz_esszimmer.yaml
+
+input_boolean:
+  esszimmer_licht_durch_praesenz:
+    name: Esszimmer Licht durch Präsenz
+    icon: mdi:motion-sensor
+
+automation:
+  # Präsenz erkannt: Licht einschalten (nur wenn dunkel genug)
+  - id: esszimmer_praesenz_licht_ein
+    alias: "Esszimmer: Präsenz schaltet Licht ein"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_esszimmer
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: light.eg_esszimmer_pendelleuchte
+        state: "off"
+      - condition: numeric_state
+        entity_id: sensor.helligkeit_esszimmer
+        below: 180
+
+    action:
+      - variables:
+          brightness_pct: >-
+            {% set h = now().hour %}
+            {% if 5 <= h < 9 or 18 <= h < 23 %}
+              70
+            {% else %}
+              100
+            {% endif %}
+
+      - service: light.turn_on
+        target:
+          entity_id: light.eg_esszimmer_pendelleuchte
+        data:
+          brightness_pct: "{{ brightness_pct }}"
+          transition: 1
+
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.esszimmer_licht_durch_praesenz
+
+  # Präsenz aus: Licht ausschalten nach 90 Sekunden
+  - id: esszimmer_praesenz_licht_aus
+    alias: "Esszimmer: Keine Präsenz schaltet Licht aus"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_esszimmer
+        to: "off"
+        for:
+          seconds: 90
+
+    condition:
+      - condition: state
+        entity_id: light.eg_esszimmer_pendelleuchte
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.esszimmer_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.eg_esszimmer_pendelleuchte
+        data:
+          transition: 2
+
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.esszimmer_licht_durch_praesenz
+
+  # Cleanup: Licht manuell ausgeschaltet
+  - id: esszimmer_licht_aus_cleanup
+    alias: "Esszimmer: Licht aus, Flag zurücksetzen"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: light.eg_esszimmer_pendelleuchte
+        to: "off"
+
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.esszimmer_licht_durch_praesenz

@@ -1,0 +1,233 @@
+# packages/praesenz_gaeste_wc.yaml
+
+input_boolean:
+  gaeste_wc_licht_durch_praesenz:
+    name: Gäste WC Licht durch Präsenz
+
+timer:
+  gaeste_wc_praesenz_nachlauf:
+    name: Gäste WC Präsenz Nachlauf
+    duration: "00:02:00"
+
+  gaeste_wc_manuell_nachlauf:
+    name: Gäste WC Manuell Nachlauf
+    duration: "00:05:00"
+
+automation:
+  # 1) Präsenz erkannt: Licht an (nur wenn dunkel genug), Präsenz-Nachlauf stoppen
+  - id: gaeste_wc_praesenz_licht_ein
+    alias: "Gäste WC: Präsenz schaltet Licht ein (Lux < 120)"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_gaste_wc
+        to: "on"
+
+    condition:
+      - condition: numeric_state
+        entity_id: sensor.helligkeit_gaste_wc
+        below: 120
+
+    action:
+      # Manuell-Nachlauf beenden, wenn jemand reinkommt
+      - service: timer.cancel
+        target:
+          entity_id: timer.gaeste_wc_manuell_nachlauf
+
+      # Präsenz-Nachlauf ebenfalls stoppen
+      - service: timer.cancel
+        target:
+          entity_id: timer.gaeste_wc_praesenz_nachlauf
+
+      # Flag setzen, damit wir wissen: dieses Einschalten war Präsenz
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+
+      # Licht nur einschalten, wenn es aus ist (sonst nichts überschreiben)
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: light.eg_gaste_wc
+                state: "off"
+            sequence:
+              - service: light.turn_on
+                target:
+                  entity_id: light.eg_gaste_wc
+                data:
+                  brightness_pct: 100
+
+  # 2) Präsenz aus: Präsenz-Nachlauf starten (120 Sekunden), aber nur wenn Licht durch Präsenz aktiv
+  - id: gaeste_wc_praesenz_aus_start_timer
+    alias: "Gäste WC: Präsenz aus startet 120s Nachlauf (nur Präsenzbetrieb)"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_gaste_wc
+        to: "off"
+
+    condition:
+      - condition: state
+        entity_id: light.eg_gaste_wc
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.gaeste_wc_praesenz_nachlauf
+        data:
+          duration: "00:02:00"
+
+  # 3) Präsenz wieder an: Präsenz-Nachlauf stoppen (Trigger wird damit effektiv erneuert)
+  - id: gaeste_wc_praesenz_an_stop_timer
+    alias: "Gäste WC: Präsenz an stoppt 120s Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_gaste_wc
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.gaeste_wc_praesenz_nachlauf
+
+  # 4) Präsenz-Nachlauf fertig: Licht aus, Flag aus
+  - id: gaeste_wc_praesenz_timer_fertig_licht_aus
+    alias: "Gäste WC: 120s Nachlauf fertig, Licht aus (Präsenzbetrieb)"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.gaeste_wc_praesenz_nachlauf
+
+    condition:
+      - condition: state
+        entity_id: binary_sensor.prasenz_gaste_wc
+        state: "off"
+      - condition: state
+        entity_id: light.eg_gaste_wc
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.eg_gaste_wc
+
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+
+  # 5) Manuell eingeschaltet: Präsenz-Flag aus, 5 Min Timer Logik vorbereiten
+  - id: gaeste_wc_licht_manuell_ein
+    alias: "Gäste WC: Licht manuell eingeschaltet (5 Min Nachlauf bei keiner Präsenz)"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: light.eg_gaste_wc
+        from: "off"
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+        state: "off"
+
+    action:
+      # Präsenz-Nachlauf beenden, weil jetzt manuell
+      - service: timer.cancel
+        target:
+          entity_id: timer.gaeste_wc_praesenz_nachlauf
+
+      # Wenn gerade keine Präsenz, Manuell-Nachlauf starten, sonst stoppen
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.prasenz_gaste_wc
+                state: "off"
+            sequence:
+              - service: timer.start
+                target:
+                  entity_id: timer.gaeste_wc_manuell_nachlauf
+                data:
+                  duration: "00:05:00"
+        default:
+          - service: timer.cancel
+            target:
+              entity_id: timer.gaeste_wc_manuell_nachlauf
+
+  # 6) Manuell: Präsenzwechsel steuert den 5 Min Timer
+  - id: gaeste_wc_manuell_timer_steuerung
+    alias: "Gäste WC: Manuell Nachlauf an Präsenz koppeln"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_gaste_wc
+
+    condition:
+      - condition: state
+        entity_id: light.eg_gaste_wc
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+        state: "off"
+
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.prasenz_gaste_wc
+                state: "on"
+            sequence:
+              - service: timer.cancel
+                target:
+                  entity_id: timer.gaeste_wc_manuell_nachlauf
+
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.prasenz_gaste_wc
+                state: "off"
+            sequence:
+              - service: timer.start
+                target:
+                  entity_id: timer.gaeste_wc_manuell_nachlauf
+                data:
+                  duration: "00:05:00"
+
+  # 7) Manuell-Nachlauf fertig: Licht aus (nur wenn weiterhin keine Präsenz)
+  - id: gaeste_wc_manuell_timer_fertig_licht_aus
+    alias: "Gäste WC: 5 Min Nachlauf fertig, Licht aus (manuell)"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.gaeste_wc_manuell_nachlauf
+
+    condition:
+      - condition: state
+        entity_id: binary_sensor.prasenz_gaste_wc
+        state: "off"
+      - condition: state
+        entity_id: light.eg_gaste_wc
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.gaeste_wc_licht_durch_praesenz
+        state: "off"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.eg_gaste_wc

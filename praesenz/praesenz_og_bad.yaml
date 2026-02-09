@@ -1,0 +1,153 @@
+# packages/praesenz/praesenz_og_bad.yaml
+
+input_boolean:
+  og_bad_licht_durch_praesenz:
+    name: OG Bad Licht durch Präsenz
+    icon: mdi:motion-sensor
+
+timer:
+  og_bad_licht_nachlauf:
+    name: OG Bad Licht Nachlauf
+    duration: "00:05:00"
+
+automation:
+  # Präsenz erkannt: Licht einschalten (Badezimmer meist ohne Fenster)
+  - id: og_bad_praesenz_licht_ein
+    alias: "OG Bad: Präsenz schaltet Licht ein"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_badezimmer_og
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: light.og_badezimmer_deckenlicht
+        state: "off"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.og_bad_licht_nachlauf
+
+      - variables:
+          brightness_pct: >-
+            {% set h = now().hour %}
+            {% if h >= 22 or h < 6 %}
+              30
+            {% elif 6 <= h < 9 or 18 <= h < 22 %}
+              80
+            {% else %}
+              100
+            {% endif %}
+          kelvin: >-
+            {% set h = now().hour %}
+            {% if h >= 22 or h < 6 %}
+              2700
+            {% else %}
+              4000
+            {% endif %}
+
+      - service: light.turn_on
+        target:
+          entity_id: light.og_badezimmer_deckenlicht
+        data:
+          brightness_pct: "{{ brightness_pct }}"
+          kelvin: "{{ kelvin }}"
+          transition: 0.5
+
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.og_bad_licht_durch_praesenz
+
+  # Präsenz aus: Timer starten (5 Minuten)
+  - id: og_bad_praesenz_aus_timer
+    alias: "OG Bad: Präsenz aus startet 5 Min Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_badezimmer_og
+        to: "off"
+
+    condition:
+      - condition: state
+        entity_id: light.og_badezimmer_deckenlicht
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.og_bad_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.og_bad_licht_nachlauf
+        data:
+          duration: "00:05:00"
+
+  # Präsenz wieder an: Timer stoppen
+  - id: og_bad_praesenz_an_stop_timer
+    alias: "OG Bad: Präsenz stoppt Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_badezimmer_og
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: input_boolean.og_bad_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.og_bad_licht_nachlauf
+
+  # Timer fertig: Licht aus
+  - id: og_bad_timer_fertig_licht_aus
+    alias: "OG Bad: Nachlauf fertig, Licht aus"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.og_bad_licht_nachlauf
+
+    condition:
+      - condition: state
+        entity_id: binary_sensor.prasenz_badezimmer_og
+        state: "off"
+      - condition: state
+        entity_id: light.og_badezimmer_deckenlicht
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.og_bad_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.og_badezimmer_deckenlicht
+        data:
+          transition: 1
+
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.og_bad_licht_durch_praesenz
+
+  # Cleanup: Licht manuell ausgeschaltet
+  - id: og_bad_licht_aus_cleanup
+    alias: "OG Bad: Licht aus, Timer und Flag zurücksetzen"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: light.og_badezimmer_deckenlicht
+        to: "off"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.og_bad_licht_nachlauf
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.og_bad_licht_durch_praesenz

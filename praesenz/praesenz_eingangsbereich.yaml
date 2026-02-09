@@ -1,0 +1,155 @@
+input_boolean:
+  eingang_licht_durch_praesenz:
+    name: Eingangsbereich Licht durch Präsenz
+
+  eingang_licht_manuell:
+    name: Eingangsbereich Licht manuell
+
+automation:
+  - alias: "Eingangsbereich, Präsenz erkannt Licht ein"
+    id: "eingang_praesenz_licht_ein"
+    mode: restart
+
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.prasenz_eingangsbereich
+        to: "on"
+
+    conditions:
+      - condition: state
+        entity_id: light.eg_eingangspots
+        state: "off"
+
+      - condition: numeric_state
+        entity_id: sensor.helligkeit_eingangsbereich
+        below: 120
+
+    actions:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.eingang_licht_durch_praesenz
+
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.eingang_licht_manuell
+
+      - choose:
+          - conditions:
+              - condition: or
+                conditions:
+                  - condition: sun
+                    after: sunset
+                  - condition: sun
+                    before: sunrise
+            sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.eg_eingangspots
+                data:
+                  brightness_pct: 30
+        default:
+          - action: light.turn_on
+            target:
+              entity_id: light.eg_eingangspots
+            data:
+              brightness_pct: 100
+
+
+  - alias: "Eingangsbereich, keine Präsenz Licht aus"
+    id: "eingang_praesenz_licht_aus"
+    mode: single
+
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.prasenz_eingangsbereich
+        to: "off"
+        for:
+          seconds: 45
+
+    conditions:
+      - condition: state
+        entity_id: light.eg_eingangspots
+        state: "on"
+
+      - condition: state
+        entity_id: input_boolean.eingang_licht_durch_praesenz
+        state: "on"
+
+    actions:
+      - action: light.turn_off
+        target:
+          entity_id: light.eg_eingangspots
+
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.eingang_licht_durch_praesenz
+
+
+  - alias: "Eingangsbereich, Licht manuell eingeschaltet"
+    id: "eingang_licht_manuell_ein"
+    mode: single
+
+    triggers:
+      - trigger: state
+        entity_id: light.eg_eingangspots
+        from: "off"
+        to: "on"
+
+    conditions:
+      - condition: state
+        entity_id: input_boolean.eingang_licht_durch_praesenz
+        state: "off"
+
+    actions:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.eingang_licht_manuell
+
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.eingang_licht_durch_praesenz
+
+
+  - alias: "Eingangsbereich, manuelles Licht nach 5 Minuten aus wenn keine Präsenz"
+    id: "eingang_licht_manuell_timeout"
+    mode: restart
+
+    triggers:
+      - trigger: state
+        entity_id: light.eg_eingangspots
+        to: "on"
+        for:
+          minutes: 5
+
+    conditions:
+      - condition: state
+        entity_id: input_boolean.eingang_licht_manuell
+        state: "on"
+
+      - condition: state
+        entity_id: binary_sensor.prasenz_eingangsbereich
+        state: "off"
+
+    actions:
+      - action: light.turn_off
+        target:
+          entity_id: light.eg_eingangspots
+
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.eingang_licht_manuell
+
+
+  - alias: "Eingangsbereich, Präsenz wieder da setzt manuell zurück"
+    id: "eingang_praesenz_reset_manuell_flag"
+    mode: single
+
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.prasenz_eingangsbereich
+        to: "on"
+
+    actions:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.eingang_licht_manuell

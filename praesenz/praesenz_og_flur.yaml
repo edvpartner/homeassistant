@@ -1,0 +1,153 @@
+# packages/praesenz/praesenz_og_flur.yaml
+
+input_boolean:
+  og_flur_licht_durch_praesenz:
+    name: OG Flur Licht durch Präsenz
+    icon: mdi:motion-sensor
+
+timer:
+  og_flur_licht_nachlauf:
+    name: OG Flur Licht Nachlauf
+    duration: "00:02:00"
+
+automation:
+  # Präsenz erkannt: Licht einschalten (im Flur meist dunkel)
+  - id: og_flur_praesenz_licht_ein
+    alias: "OG Flur: Präsenz schaltet Licht ein"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_flur_og
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: light.og_flur_licht
+        state: "off"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.og_flur_licht_nachlauf
+
+      - variables:
+          brightness_pct: >-
+            {% set h = now().hour %}
+            {% if h >= 22 or h < 6 %}
+              20
+            {% elif 6 <= h < 9 or 18 <= h < 22 %}
+              60
+            {% else %}
+              100
+            {% endif %}
+          kelvin: >-
+            {% set h = now().hour %}
+            {% if h >= 22 or h < 6 %}
+              2700
+            {% else %}
+              4000
+            {% endif %}
+
+      - service: light.turn_on
+        target:
+          entity_id: light.og_flur_licht
+        data:
+          brightness_pct: "{{ brightness_pct }}"
+          kelvin: "{{ kelvin }}"
+          transition: 0.5
+
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.og_flur_licht_durch_praesenz
+
+  # Präsenz aus: Timer starten (2 Minuten)
+  - id: og_flur_praesenz_aus_timer
+    alias: "OG Flur: Präsenz aus startet 2 Min Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_flur_og
+        to: "off"
+
+    condition:
+      - condition: state
+        entity_id: light.og_flur_licht
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.og_flur_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.og_flur_licht_nachlauf
+        data:
+          duration: "00:02:00"
+
+  # Präsenz wieder an: Timer stoppen
+  - id: og_flur_praesenz_an_stop_timer
+    alias: "OG Flur: Präsenz stoppt Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.prasenz_flur_og
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: input_boolean.og_flur_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.og_flur_licht_nachlauf
+
+  # Timer fertig: Licht aus
+  - id: og_flur_timer_fertig_licht_aus
+    alias: "OG Flur: Nachlauf fertig, Licht aus"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.og_flur_licht_nachlauf
+
+    condition:
+      - condition: state
+        entity_id: binary_sensor.prasenz_flur_og
+        state: "off"
+      - condition: state
+        entity_id: light.og_flur_licht
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.og_flur_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.og_flur_licht
+        data:
+          transition: 1
+
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.og_flur_licht_durch_praesenz
+
+  # Cleanup: Licht manuell ausgeschaltet
+  - id: og_flur_licht_aus_cleanup
+    alias: "OG Flur: Licht aus, Timer und Flag zurücksetzen"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: light.og_flur_licht
+        to: "off"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.og_flur_licht_nachlauf
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.og_flur_licht_durch_praesenz

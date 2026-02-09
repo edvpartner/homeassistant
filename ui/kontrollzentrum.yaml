@@ -1,0 +1,339 @@
+# packages/kontrollzentrum.yaml
+# Zentrales Kontrollzentrum für Haus-Modi und Szenarien
+
+##############################################################################
+# JAHRESZEITEN (Automatisch + Manuell)
+##############################################################################
+
+input_select:
+  jahreszeit:
+    name: Jahreszeit
+    icon: mdi:calendar-month
+    options:
+      - "Automatisch"
+      - "Frühling"
+      - "Sommer"
+      - "Herbst"
+      - "Winter"
+    initial: "Automatisch"
+
+  jahreszeit_aktuell:
+    name: Aktuelle Jahreszeit
+    icon: mdi:weather-partly-cloudy
+    options:
+      - "Frühling"
+      - "Sommer"
+      - "Herbst"
+      - "Winter"
+
+  hausmodus:
+    name: Hausmodus
+    icon: mdi:home-account
+    options:
+      - "Zuhause"
+      - "Abwesend"
+      - "Urlaub"
+      - "Schlafen"
+      - "Party"
+      - "Film"
+    initial: "Zuhause"
+
+##############################################################################
+# ALLE INPUT_BOOLEAN ZUSAMMEN (NUR EINMAL!)
+##############################################################################
+
+input_boolean:
+  # Von helfer_heizung.yaml hierher verschoben
+  urlaubsmodus:
+    name: Urlaubsmodus
+    icon: mdi:beach
+    initial: false
+
+  gaeste_wc_heizung_wintermodus:
+    name: Gäste WC Heizung Wintermodus
+    icon: mdi:snowflake
+    initial: true
+
+  gaeste_wc_heizung_manuell_gesperrt:
+    name: Gäste WC Heizung manuell gesperrt
+    icon: mdi:lock
+    initial: false
+
+  # Anwesenheit & Hausmodus
+  gaeste_anwesend:
+    name: Gäste anwesend
+    icon: mdi:account-multiple
+    initial: false
+
+  nachtmodus:
+    name: Nachtmodus
+    icon: mdi:weather-night
+    initial: false
+
+  # Feiertage & Events
+  weihnachtszeit:
+    name: Weihnachtszeit
+    icon: mdi:pine-tree
+    initial: false
+
+  osterzeit:
+    name: Osterzeit
+    icon: mdi:egg-easter
+    initial: false
+
+  halloween:
+    name: Halloween
+    icon: mdi:halloween
+    initial: false
+
+  geburtstag_modus:
+    name: Geburtstag Modus
+    icon: mdi:cake-variant
+    initial: false
+
+  # Heizung
+  heizung_automatik:
+    name: Heizung Automatik
+    icon: mdi:radiator
+    initial: true
+
+##############################################################################
+# INPUT_DATETIME
+##############################################################################
+
+input_datetime:
+  gaeste_wc_heizung_last_on:
+    name: Gäste WC Heizung letzter Start
+    has_date: true
+    has_time: true
+
+##############################################################################
+# SENSOREN FÜR FEIERTAGE (MODERNE TEMPLATE SYNTAX)
+##############################################################################
+
+template:
+  - sensor:
+      - name: "Nächster Feiertag"
+        unique_id: naechster_feiertag
+        icon: mdi:calendar-star
+        state: >
+          {% set today = now().date() %}
+          {% set jahr = now().year %}
+          
+          {# Feiertage definieren #}
+          {% set feiertage = [
+            ('Neujahr', jahr ~ '-01-01'),
+            ('Karfreitag', (jahr ~ '-04-18')),
+            ('Ostersonntag', (jahr ~ '-04-20')),
+            ('Ostermontag', (jahr ~ '-04-21')),
+            ('Tag der Arbeit', jahr ~ '-05-01'),
+            ('Christi Himmelfahrt', (jahr ~ '-05-29')),
+            ('Pfingstsonntag', (jahr ~ '-06-08')),
+            ('Pfingstmontag', (jahr ~ '-06-09')),
+            ('Tag der Deutschen Einheit', jahr ~ '-10-03'),
+            ('Reformationstag', jahr ~ '-10-31'),
+            ('Halloween', jahr ~ '-10-31'),
+            ('Allerheiligen', jahr ~ '-11-01'),
+            ('1. Advent', (jahr ~ '-12-01')),
+            ('Nikolaus', jahr ~ '-12-06'),
+            ('Heiligabend', jahr ~ '-12-24'),
+            ('1. Weihnachtstag', jahr ~ '-12-25'),
+            ('2. Weihnachtstag', jahr ~ '-12-26'),
+            ('Silvester', jahr ~ '-12-31')
+          ] %}
+          
+          {# Finde nächsten Feiertag #}
+          {% set ns = namespace(naechster=None, min_diff=999) %}
+          {% for name, datum in feiertage %}
+            {% set feiertag_datum = strptime(datum, '%Y-%m-%d').date() %}
+            {% set diff = (feiertag_datum - today).days %}
+            {% if diff >= 0 and diff < ns.min_diff %}
+              {% set ns.min_diff = diff %}
+              {% set ns.naechster = name %}
+            {% endif %}
+          {% endfor %}
+          
+          {% if ns.naechster %}
+            {{ ns.naechster }} (in {{ ns.min_diff }} Tagen)
+          {% else %}
+            Kein Feiertag in Sicht
+          {% endif %}
+
+##############################################################################
+# AUTOMATIONEN - JAHRESZEIT AUTOMATISCH SETZEN
+##############################################################################
+
+automation:
+  # Jahreszeit automatisch setzen basierend auf Datum
+  - id: jahreszeit_automatisch_setzen
+    alias: "Jahreszeit automatisch setzen"
+    trigger:
+      - platform: time
+        at: "00:00:01"
+      - platform: homeassistant
+        event: start
+    condition:
+      - condition: state
+        entity_id: input_select.jahreszeit
+        state: "Automatisch"
+    action:
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.jahreszeit_aktuell
+        data:
+          option: >
+            {% set monat = now().month %}
+            {% set tag = now().day %}
+            {% if (monat == 3 and tag >= 20) or (monat == 4) or (monat == 5) or (monat == 6 and tag < 21) %}
+              Frühling
+            {% elif (monat == 6 and tag >= 21) or (monat == 7) or (monat == 8) or (monat == 9 and tag < 23) %}
+              Sommer
+            {% elif (monat == 9 and tag >= 23) or (monat == 10) or (monat == 11) or (monat == 12 and tag < 21) %}
+              Herbst
+            {% else %}
+              Winter
+            {% endif %}
+    mode: single
+
+  # Bei manuellem Wechsel der Jahreszeit -> überschreiben
+  - id: jahreszeit_manuell_ueberschreiben
+    alias: "Jahreszeit manuell überschreiben"
+    trigger:
+      - platform: state
+        entity_id: input_select.jahreszeit
+        to:
+          - "Frühling"
+          - "Sommer"
+          - "Herbst"
+          - "Winter"
+    action:
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.jahreszeit_aktuell
+        data:
+          option: "{{ states('input_select.jahreszeit') }}"
+    mode: single
+
+  # Heizung Wintermodus basierend auf Jahreszeit
+  - id: heizung_wintermodus_nach_jahreszeit
+    alias: "Heizung Wintermodus nach Jahreszeit"
+    trigger:
+      - platform: state
+        entity_id: input_select.jahreszeit_aktuell
+    condition:
+      - condition: state
+        entity_id: input_boolean.heizung_automatik
+        state: "on"
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_select.jahreszeit_aktuell
+                state: "Winter"
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.gaeste_wc_heizung_wintermodus
+          - conditions:
+              - condition: state
+                entity_id: input_select.jahreszeit_aktuell
+                state: "Herbst"
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.gaeste_wc_heizung_wintermodus
+        default:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.gaeste_wc_heizung_wintermodus
+    mode: single
+
+  # Weihnachtszeit automatisch aktivieren (1. Advent bis 6. Januar)
+  - id: weihnachtszeit_automatisch
+    alias: "Weihnachtszeit automatisch"
+    trigger:
+      - platform: time
+        at: "00:00:01"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {% set monat = now().month %}
+                  {% set tag = now().day %}
+                  {{ (monat == 12 and tag >= 1) or (monat == 1 and tag <= 6) }}
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.weihnachtszeit
+        default:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.weihnachtszeit
+    mode: single
+
+  # Halloween automatisch (31. Oktober)
+  - id: halloween_automatisch
+    alias: "Halloween automatisch"
+    trigger:
+      - platform: time
+        at: "00:00:01"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >
+                  {{ now().month == 10 and now().day == 31 }}
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.halloween
+        default:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.halloween
+    mode: single
+
+  # Urlaubsmodus aktivieren wenn Hausmodus = Urlaub
+  - id: urlaubsmodus_sync
+    alias: "Urlaubsmodus mit Hausmodus synchronisieren"
+    trigger:
+      - platform: state
+        entity_id: input_select.hausmodus
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_select.hausmodus
+                state: "Urlaub"
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.urlaubsmodus
+        default:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.urlaubsmodus
+    mode: single
+
+  # Nachtmodus aktivieren wenn Hausmodus = Schlafen
+  - id: nachtmodus_sync
+    alias: "Nachtmodus mit Hausmodus synchronisieren"
+    trigger:
+      - platform: state
+        entity_id: input_select.hausmodus
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_select.hausmodus
+                state: "Schlafen"
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.nachtmodus
+        default:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.nachtmodus
+    mode: single

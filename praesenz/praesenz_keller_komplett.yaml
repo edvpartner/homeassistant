@@ -1,0 +1,357 @@
+# packages/praesenz_keller_komplett.yaml
+# Präsenzsteuerung für den gesamten Keller
+# Steuert alle Kellerlichter basierend auf Präsenz in Kellerflur ODER Waschküche
+
+knx:
+  binary_sensor:
+    - name: "Präsenz Waschküche"
+      state_address: "4/6/0"
+      device_class: motion
+
+    - name: "Präsenz Kellerflur"
+      state_address: "4/6/10"
+      device_class: motion
+
+  sensor:
+    - name: "Helligkeit Waschküche"
+      state_address: "4/6/1"
+      type: illuminance
+
+    - name: "Helligkeit Kellerflur"
+      state_address: "4/6/11"
+      type: illuminance
+
+input_boolean:
+  keller_licht_durch_praesenz:
+    name: Keller Licht durch Präsenz
+    icon: mdi:motion-sensor
+
+timer:
+  keller_auto_nachlauf:
+    name: Keller Automatik Nachlauf
+    duration: "00:05:00"
+
+  keller_manuell_nachlauf:
+    name: Keller Manuell Nachlauf
+    duration: "00:10:00"
+
+automation:
+  # A) Präsenz erkannt: ALLE Kellerlichter einschalten
+  - id: keller_praesenz_alle_lichter_an
+    alias: "Keller: Präsenz schaltet alle Lichter an"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.prasenz_kellerflur
+          - binary_sensor.prasenz_waschkuche
+        to: "on"
+
+    variables:
+      # Minimale Helligkeit aus beiden Sensoren ermitteln
+      lux_min: >-
+        {% set a = states('sensor.helligkeit_kellerflur') | float(9999) %}
+        {% set b = states('sensor.helligkeit_waschkuche') | float(9999) %}
+        {{ [a, b] | min }}
+
+    condition:
+      # Nur einschalten wenn es dunkel genug ist
+      - condition: template
+        value_template: "{{ lux_min < 80 }}"
+
+    action:
+      # Timer stoppen
+      - service: timer.cancel
+        target:
+          entity_id:
+            - timer.keller_auto_nachlauf
+            - timer.keller_manuell_nachlauf
+
+      # Flag setzen: Automatik aktiv
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.keller_licht_durch_praesenz
+
+      # ALLE Kellerlichter einschalten (nur wenn noch aus)
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ is_state('light.keller_waschkuche_licht', 'off')
+                     or is_state('light.keller_technikraum_licht', 'off')
+                     or is_state('light.keller_vorratsraum_licht', 'off')
+                     or is_state('light.keller_buro_licht', 'off')
+                     or is_state('light.kellerflur_licht', 'off') }}
+            sequence:
+              - service: light.turn_on
+                target:
+                  entity_id:
+                    - light.keller_waschkuche_licht
+                    - light.keller_technikraum_licht
+                    - light.keller_vorratsraum_licht
+                    - light.keller_buro_licht
+                    - light.kellerflur_licht
+                data:
+                  brightness_pct: 100
+
+  # B) Beide Präsenzmelder aus: 5 Minuten Nachlauf starten
+  - id: keller_praesenz_beide_aus_nachlauf_starten
+    alias: "Keller: Keine Präsenz mehr - 5 Minuten Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.prasenz_kellerflur
+          - binary_sensor.prasenz_waschkuche
+        to: "off"
+
+    condition:
+      # Nur wenn Automatik aktiv war
+      - condition: state
+        entity_id: input_boolean.keller_licht_durch_praesenz
+        state: "on"
+      # Und beide Melder wirklich aus sind
+      - condition: template
+        value_template: >-
+          {{ is_state('binary_sensor.prasenz_kellerflur','off')
+             and is_state('binary_sensor.prasenz_waschkuche','off') }}
+      # Und mindestens ein Licht noch an ist
+      - condition: template
+        value_template: >-
+          {{ is_state('light.keller_waschkuche_licht', 'on')
+             or is_state('light.keller_technikraum_licht', 'on')
+             or is_state('light.keller_vorratsraum_licht', 'on')
+             or is_state('light.keller_buro_licht', 'on')
+             or is_state('light.kellerflur_licht', 'on') }}
+
+    action:
+      - service: timer.start
+        target:
+          entity_id: timer.keller_auto_nachlauf
+        data:
+          duration: "00:05:00"
+
+  # C) Präsenz wieder erkannt: Nachlauf-Timer stoppen (wird neu gestartet bei erneutem "aus")
+  - id: keller_praesenz_wieder_an_timer_stoppen
+    alias: "Keller: Präsenz stoppt Nachlauf-Timer"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.prasenz_kellerflur
+          - binary_sensor.prasenz_waschkuche
+        to: "on"
+
+    condition:
+      - condition: state
+        entity_id: input_boolean.keller_licht_durch_praesenz
+        state: "on"
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id: timer.keller_auto_nachlauf
+
+  # D) Nachlauf-Timer abgelaufen: ALLE Lichter ausschalten
+  - id: keller_auto_timer_fertig_alle_lichter_aus
+    alias: "Keller: Nachlauf fertig - alle Lichter aus"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.keller_auto_nachlauf
+
+    condition:
+      # Nur wenn Automatik aktiv war
+      - condition: state
+        entity_id: input_boolean.keller_licht_durch_praesenz
+        state: "on"
+      # Und beide Melder immer noch aus sind
+      - condition: template
+        value_template: >-
+          {{ is_state('binary_sensor.prasenz_kellerflur','off')
+             and is_state('binary_sensor.prasenz_waschkuche','off') }}
+      # Und mindestens ein Licht noch an ist
+      - condition: template
+        value_template: >-
+          {{ is_state('light.keller_waschkuche_licht', 'on')
+             or is_state('light.keller_technikraum_licht', 'on')
+             or is_state('light.keller_vorratsraum_licht', 'on')
+             or is_state('light.keller_buro_licht', 'on')
+             or is_state('light.kellerflur_licht', 'on') }}
+
+    action:
+      # ALLE Kellerlichter ausschalten
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.keller_waschkuche_licht
+            - light.keller_technikraum_licht
+            - light.keller_vorratsraum_licht
+            - light.keller_buro_licht
+            - light.kellerflur_licht
+      
+      # Automatik-Flag zurücksetzen
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.keller_licht_durch_praesenz
+
+  # E) Manuell eingeschaltet: 10 Minuten Nachlauf wenn keine Präsenz
+  - id: keller_licht_manuell_ein_nachlauf
+    alias: "Keller: Licht manuell eingeschaltet - 10 Minuten Nachlauf"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id:
+          - light.keller_waschkuche_licht
+          - light.keller_technikraum_licht
+          - light.keller_vorratsraum_licht
+          - light.keller_buro_licht
+          - light.kellerflur_licht
+        from: "off"
+        to: "on"
+
+    condition:
+      # Nur wenn NICHT durch Automatik eingeschaltet
+      - condition: state
+        entity_id: input_boolean.keller_licht_durch_praesenz
+        state: "off"
+
+    action:
+      # Automatik-Timer stoppen (falls läuft)
+      - service: timer.cancel
+        target:
+          entity_id: timer.keller_auto_nachlauf
+
+      # Wenn keine Präsenz: 10 Minuten Timer starten
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ is_state('binary_sensor.prasenz_kellerflur','off')
+                     and is_state('binary_sensor.prasenz_waschkuche','off') }}
+            sequence:
+              - service: timer.start
+                target:
+                  entity_id: timer.keller_manuell_nachlauf
+                data:
+                  duration: "00:10:00"
+        default:
+          # Wenn Präsenz aktiv: Timer stoppen
+          - service: timer.cancel
+            target:
+              entity_id: timer.keller_manuell_nachlauf
+
+  # F) Manueller Modus: Präsenz steuert 10 Minuten Timer
+  - id: keller_manuell_timer_durch_praesenz
+    alias: "Keller: Manueller Nachlauf wird durch Präsenz gesteuert"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.prasenz_kellerflur
+          - binary_sensor.prasenz_waschkuche
+
+    condition:
+      # Nur im manuellen Modus
+      - condition: state
+        entity_id: input_boolean.keller_licht_durch_praesenz
+        state: "off"
+      # Und mindestens ein Licht ist an
+      - condition: template
+        value_template: >-
+          {{ is_state('light.keller_waschkuche_licht', 'on')
+             or is_state('light.keller_technikraum_licht', 'on')
+             or is_state('light.keller_vorratsraum_licht', 'on')
+             or is_state('light.keller_buro_licht', 'on')
+             or is_state('light.kellerflur_licht', 'on') }}
+
+    action:
+      - choose:
+          # Präsenz erkannt: Timer stoppen
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ is_state('binary_sensor.prasenz_kellerflur','on')
+                     or is_state('binary_sensor.prasenz_waschkuche','on') }}
+            sequence:
+              - service: timer.cancel
+                target:
+                  entity_id: timer.keller_manuell_nachlauf
+          
+          # Keine Präsenz: 10 Minuten Timer starten
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ is_state('binary_sensor.prasenz_kellerflur','off')
+                     and is_state('binary_sensor.prasenz_waschkuche','off') }}
+            sequence:
+              - service: timer.start
+                target:
+                  entity_id: timer.keller_manuell_nachlauf
+                data:
+                  duration: "00:10:00"
+
+  # G) Manueller Timer fertig: Lichter ausschalten
+  - id: keller_manuell_timer_fertig_aus
+    alias: "Keller: Manueller Nachlauf fertig - Lichter aus"
+    mode: single
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.keller_manuell_nachlauf
+
+    condition:
+      # Nicht im Automatik-Modus
+      - condition: state
+        entity_id: input_boolean.keller_licht_durch_praesenz
+        state: "off"
+      # Keine Präsenz
+      - condition: template
+        value_template: >-
+          {{ is_state('binary_sensor.prasenz_kellerflur','off')
+             and is_state('binary_sensor.prasenz_waschkuche','off') }}
+      # Mindestens ein Licht an
+      - condition: template
+        value_template: >-
+          {{ is_state('light.keller_waschkuche_licht', 'on')
+             or is_state('light.keller_technikraum_licht', 'on')
+             or is_state('light.keller_vorratsraum_licht', 'on')
+             or is_state('light.keller_buro_licht', 'on')
+             or is_state('light.kellerflur_licht', 'on') }}
+
+    action:
+      - service: light.turn_off
+        target:
+          entity_id:
+            - light.keller_waschkuche_licht
+            - light.keller_technikraum_licht
+            - light.keller_vorratsraum_licht
+            - light.keller_buro_licht
+            - light.kellerflur_licht
+
+  # H) Cleanup: Alle Lichter aus -> Timer und Flags zurücksetzen
+  - id: keller_alle_lichter_aus_cleanup
+    alias: "Keller: Alle Lichter aus - Cleanup"
+    mode: single
+    trigger:
+      - platform: template
+        value_template: >-
+          {{ is_state('light.keller_waschkuche_licht', 'off')
+             and is_state('light.keller_technikraum_licht', 'off')
+             and is_state('light.keller_vorratsraum_licht', 'off')
+             and is_state('light.keller_buro_licht', 'off')
+             and is_state('light.kellerflur_licht', 'off') }}
+
+    action:
+      - service: timer.cancel
+        target:
+          entity_id:
+            - timer.keller_auto_nachlauf
+            - timer.keller_manuell_nachlauf
+      
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.keller_licht_durch_praesenz
